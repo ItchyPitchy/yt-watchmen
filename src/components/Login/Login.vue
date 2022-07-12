@@ -15,7 +15,6 @@
   const activeTab = ref<ActiveTab>(ActiveTab.SIGN_IN)
   const isChangingTab = ref(false)
 
-
   function signUp() {
     if (passwordSignUp.value.length !== 0 && passwordSignUp.value === passwordRepeatSignUp.value) {
       const auth = getAuth()
@@ -74,19 +73,21 @@
           <button @click="() => changeTab(ActiveTab.SIGN_IN)">Sign IN instead!</button>
         </div>
       </div>
-      <form class="sign-in-form">
+      <form @submit.prevent="signIn" class="sign-in-form">
         <label>Email</label>
         <input v-model="emailSignIn" />
         <label>Password</label>
         <input type="password" v-model="passwordSignIn" />
+        <button type="submit">Sign in</button>
       </form>
-      <form class="sign-up-form">
+      <form @submit.prevent="signUp" class="sign-up-form">
         <label>Email</label>
         <input v-model="emailSignUp" />
         <label>Password</label>
         <input type="password" v-model="passwordSignUp" />
         <label>Repeat password</label>
         <input type="password" v-model="passwordRepeatSignUp" />
+        <button type="submit">Sign up</button>
       </form>
     </div>
   </div>
