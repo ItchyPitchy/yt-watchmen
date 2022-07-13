@@ -1,23 +1,23 @@
 <script lang="ts">
   import { defineComponent } from "vue"
+  import Video from "./Video.vue"
 
   export default defineComponent({
     computed: {
       roomId() {
-        // We will see what `params` is shortly
-        return this.$route.params.id
+          return this.$route.params.id;
       },
     },
-    created() {
-      console.log('created!')
-    }
-  })
+    components: { Video }
+})
 
 
 </script>
 
 <template>
   <p>{{ roomId }}</p>
+  <Video></Video>
+  <p></p>
 </template>
 
 <style>

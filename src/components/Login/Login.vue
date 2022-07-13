@@ -1,62 +1,85 @@
-<script lang="ts" setup>
+<script lang="ts">
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth"
-  import { ref } from 'vue'
+  import { defineComponent } from 'vue'
+
+  interface LoginState {
+    emailSignIn: string,
+    passwordSignIn: string,
+    emailSignUp: string,
+    passwordSignUp: string,
+    passwordRepeatSignUp: string,
+    activeTab: ActiveTab,
+    isChangingTab: boolean,
+  }
 
   enum ActiveTab {
     SIGN_IN,
     SIGN_UP,
   }
 
-  const emailSignIn = ref("")
-  const passwordSignIn = ref("")
-  const emailSignUp = ref("")
-  const passwordSignUp = ref("")
-  const passwordRepeatSignUp = ref("")
-  const activeTab = ref<ActiveTab>(ActiveTab.SIGN_IN)
-  const isChangingTab = ref(false)
+  export default defineComponent({
+    setup() {
+      return {
+        ActiveTab,
+      }
+    },
+    data(): LoginState {
+      return {
+        emailSignIn: "",
+        passwordSignIn: "",
+        emailSignUp: "",
+        passwordSignUp: "",
+        passwordRepeatSignUp: "",
+        activeTab: ActiveTab.SIGN_IN,
+        isChangingTab: false,
+      }
+    },
+    methods: {
+      signUp() {
+        if (this.passwordSignUp.length !== 0 && this.passwordSignUp === this.passwordRepeatSignUp) {
+          const auth = getAuth()
 
-  function signUp() {
-    if (passwordSignUp.value.length !== 0 && passwordSignUp.value === passwordRepeatSignUp.value) {
-      const auth = getAuth()
+          createUserWithEmailAndPassword(auth, this.emailSignUp, this.passwordSignUp)
+            .then((userCredential) => {
+              const user = userCredential.user
+              console.log("user", user)
+            })
+            .catch((error) => {
+              console.log(error)
+              const errorCode = error.code;
+              const errorMessage = error.message;
+            })
+        }
+      },
+      signIn() {
+        const auth = getAuth()
 
-      createUserWithEmailAndPassword(auth, emailSignUp.value, passwordSignUp.value)
-        .then((userCredential) => {
-          const user = userCredential.user
-          console.log("user", user)
-        })
-        .catch((error) => {
-          console.log(error)
-          const errorCode = error.code;
-          const errorMessage = error.message;
-        })
+        signInWithEmailAndPassword(auth, this.emailSignIn, this.passwordSignIn)
+          .then((userCredential) => {
+            const user = userCredential.user
+            console.log("user", user)
+          })
+          .catch((error) => {
+            console.log(error)
+            const errorCode = error.code;
+            const errorMessage = error.message;
+          })
+        console.log("Sign in!")
+      },
+      changeTab(to: ActiveTab) {
+        // isChangingTab.value = true
+
+        // setTimeout(() => {
+        //   isChangingTab.value = false
+        //   activeTab.value = to
+        // }, 1000)
+        this.activeTab = to
+      }
     }
-  }
 
-  function signIn() {
-    const auth = getAuth()
+  })
 
-    signInWithEmailAndPassword(auth, emailSignIn.value, passwordSignIn.value)
-      .then((userCredential) => {
-        const user = userCredential.user
-        console.log("user", user)
-      })
-      .catch((error) => {
-        console.log(error)
-        const errorCode = error.code;
-        const errorMessage = error.message;
-      })
-    console.log("Sign in!")
-  }
 
-  function changeTab(to: ActiveTab) {
-    // isChangingTab.value = true
-
-    // setTimeout(() => {
-    //   isChangingTab.value = false
-    //   activeTab.value = to
-    // }, 1000)
-    activeTab.value = to
-  }
 
 </script>
 
