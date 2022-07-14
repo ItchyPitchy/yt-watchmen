@@ -8,18 +8,23 @@
           return this.$route.params.id;
       },
     },
-    components: { Video }
+    components: { Video },
 })
 
 
 </script>
 
 <template>
-  <p>{{ roomId }}</p>
-  <Video></Video>
-  <p></p>
+  <div class="page-wrapper">
+    <Video></Video>
+  </div>
 </template>
 
 <style>
-
+  .page-wrapper {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
 </style>

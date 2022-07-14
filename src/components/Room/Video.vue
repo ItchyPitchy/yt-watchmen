@@ -1,30 +1,52 @@
 <script lang="ts">
+  import { getDatabase, onValue, ref, set } from "@firebase/database";
   import { defineComponent } from "vue";
 
-  window["onYouTubeIframeAPIReady"] = () => {
-    videoComponent.methods.initYoutube()
-  }
+  const db = getDatabase()
 
-  const videoComponent = defineComponent({
+  export default defineComponent({
     data() {
       return {
         player: null,
-        videoUrl: "",
+        videoUrlInput: "",
         done: false,
       }
     },
-    mounted() {
-    },
     created() {
+      window["onYouTubeIframeAPIReady"] = () => {
+        this.initYoutube()
+      }
+
+      const roomRef = ref(db, `rooms/${this.roomId}/videoId`)
+
+      onValue(roomRef, (snapshot) => {
+        const room = snapshot.val()
+
+        console.log(room)
+      })
+    },
+    computed: {
+      roomId() {
+        return this.$route.params.id
+      },
+    },
+    watch: {
+      'roomId': {
+        handler(toId) {
+          console.log("toParams", toId)
+        },
+      }
+    },
+    mounted() {
       // 2. This code loads the IFrame Player API code asynchronously.
-      var tag = document.createElement('script');
+      const tag = document.createElement('script');
       tag.src = "https://www.youtube.com/iframe_api";
-      var firstScriptTag = document.getElementsByTagName('script')[0];
+      const firstScriptTag = document.getElementsByTagName('script')[0];
       firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
     },
     methods: {
       initYoutube() {
-        this.player = new window["YT"].Player('player', {
+        const player = new window["YT"].Player('player', {
           height: '390',
           width: '640',
           videoId: 'M7lc1UVf-VE',
@@ -33,40 +55,48 @@
           },
           events: {
             'onReady': this.onPlayerReady,
-            'onStateChange': this.onPlayerStateChange
-          }
+            'onStateChange': this.onPlayerStateChange,
+          },
         });
+
+        this.player = player
       },
-      // 4. The API will call this function when the video player is ready.
       onPlayerReady(event) {
-        console.log("onplayerready")
-        event.target.playVideo();
+        event.target.playVideo()
       },
-      // 5. The API calls this function when the player's state changes.
-      //    The function indicates that when playing a video (state=1),
-      //    the player should play for six seconds and then stop.
-      // var done = false;
       onPlayerStateChange(event) {
-        console.log("onplayerstatechange")
         if (event.data == window["YT"].PlayerState.PLAYING && !this.done) {
-          setTimeout(this.stopVideo, 6000);
-          this.done = true;
+          setTimeout(this.stopVideo, 6000)
+          this.done = true
         }
       },
       stopVideo() {
-        console.log("stopvideo")
         this.player.stopVideo();
+      },
+      async loadVideo() {
+        const url = new URL(this.videoUrlInput)
+        const urlParams = new URLSearchParams(url.search)
+
+        if (urlParams.has("v")) {
+          const videoId = urlParams.get("v")
+
+          const roomVideoIdRef = ref(db, `rooms/${this.roomId}/videoId`)
+
+          await set(roomVideoIdRef, videoId)
+
+          this.player.loadVideoById({ videoId })
+        }
       },
     }
 
   })
-
-  export default videoComponent
 </script>
 
 <template>
-  <input @v-model="videoUrl" />
+  <input v-model="videoUrlInput" placeholder="video url here"/>
+  <button @click="loadVideo">Load video</button>
   <div id="player"></div>
+  <router-link to="/rooms/4">Go to other Id</router-link>
 </template>
 
 <style>
