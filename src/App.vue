@@ -7,12 +7,10 @@
     <header>
       <nav>
         <RouterLink to="/">Home</RouterLink>
-        <RouterLink to="/about">About</RouterLink>
+        <RouterLink to="/rooms">Rooms</RouterLink>
       </nav>
     </header>
-    <!-- <div class="content"> -->
-      <RouterView />
-    <!-- </div> -->
+    <RouterView />
   </div>
 </template>
 

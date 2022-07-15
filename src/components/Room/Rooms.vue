@@ -6,7 +6,6 @@
   export default defineComponent({
     data() {
       return {
-        userName: "",
         roomName: "",
       }
     },
@@ -22,20 +21,9 @@
         const roomsRef = ref(db, "rooms")
         const newRoomRef = await push(roomsRef)
 
-        console.log("newRoomRef", newRoomRef)
-        console.log("userName", this.userName)
-        console.log("roomName", this.roomName)
-
         await set(newRoomRef, {
-          host: auth.currentUser.uid,
+          host: auth.currentUser!.uid,
           name: this.roomName,
-        })
-
-        const roomMembersRef = ref(db, "members" + `/${newRoomRef.key}/`)
-
-        await push(roomMembersRef, {
-          userId: auth.currentUser.uid,
-          userName: this.userName,
         })
 
         return newRoomRef.key
@@ -46,7 +34,6 @@
 
 <template>
   <div class="page-wrapper">
-    <input v-model="userName" placeholder="username" required />
     <input v-model="roomName" placeholder="room name" required />
     <button @click="onCreateRoom">Create room</button>
   </div>

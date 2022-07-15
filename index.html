@@ -9,11 +9,9 @@
   <body>
     <div id="app"></div>
     <script type="module">
-      import { initializeApp } from 'firebase/app';
-      import { getAuth } from 'firebase/auth';
-      import { getDatabase } from "firebase/database";
-      // TODO: Add SDKs for Firebase products that you want to use
-      // https://firebase.google.com/docs/web/setup#available-libraries
+      import { initializeApp } from "firebase/app"
+      import { getAuth } from "firebase/auth"
+      import { getDatabase } from "firebase/database"
 
       // Your web app's Firebase configuration
       const firebaseConfig = {
@@ -24,14 +22,14 @@
         storageBucket: "yt-watchmen.appspot.com",
         messagingSenderId: "359895816834",
         appId: "1:359895816834:web:bb43560e3588066de1b29b"
-      };
+      }
 
       // Initialize Firebase
-      const app = initializeApp(firebaseConfig);
+      const app = initializeApp(firebaseConfig)
 
-      // Initialize Firebase Authentication and get a reference to the service
-      const auth = getAuth(app);
-      const database = getDatabase(app);
+      // Initialize Firebase Authentication and Database and get a reference to the services
+      const auth = getAuth(app)
+      const database = getDatabase(app)
     </script>
     <script type="module" src="/src/main.ts"></script>
   </body>

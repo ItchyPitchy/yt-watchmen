@@ -11,5 +11,8 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
-  base: '/yt-watchmen/'
+  base: '/yt-watchmen',
+  build: {
+    outDir: "./docs"
+  }
 });

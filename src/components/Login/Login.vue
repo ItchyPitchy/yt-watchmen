@@ -1,5 +1,6 @@
 <script lang="ts">
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth"
+  import { getDatabase, ref, set } from "firebase/database"
   import { defineComponent } from 'vue'
 
   interface LoginState {
@@ -38,11 +39,19 @@
       signUp() {
         if (this.passwordSignUp.length !== 0 && this.passwordSignUp === this.passwordRepeatSignUp) {
           const auth = getAuth()
+          const db = getDatabase()
 
           createUserWithEmailAndPassword(auth, this.emailSignUp, this.passwordSignUp)
-            .then((userCredential) => {
+            .then(async (userCredential) => {
               const user = userCredential.user
               console.log("user", user)
+
+              const usersRef = ref(db, `users/${user.uid}`)
+
+              await set(usersRef, {
+                userId: user.uid,
+                displayName: "Karlsson på taket",
+              })
             })
             .catch((error) => {
               console.log(error)
