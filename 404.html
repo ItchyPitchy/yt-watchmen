@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="#" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vite App</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module">
+      import { initializeApp } from 'firebase/app';
+      import { getAuth } from 'firebase/auth';
+      import { getDatabase } from 'firebase/database';
+      // TODO: Add SDKs for Firebase products that you want to use
+      // https://firebase.google.com/docs/web/setup#available-libraries
+
+      // Your web app's Firebase configuration
+      const firebaseConfig = {
+        apiKey: "AIzaSyA7mlXL-RQizJ8YVA03pSNlAV9W7T07FpY",
+        authDomain: "yt-watchmen.firebaseapp.com",
+        databaseURL: "https://yt-watchmen-default-rtdb.europe-west1.firebasedatabase.app",
+        projectId: "yt-watchmen",
+        storageBucket: "yt-watchmen.appspot.com",
+        messagingSenderId: "359895816834",
+        appId: "1:359895816834:web:bb43560e3588066de1b29b"
+      };
+
+      // Initialize Firebase
+      const app = initializeApp(firebaseConfig);
+
+      // Initialize Firebase Authentication and get a reference to the service
+      const auth = getAuth(app);
+      const database = getDatabase(app);
+    </script>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
