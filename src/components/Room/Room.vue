@@ -20,7 +20,7 @@
   </div>
 </template>
 
-<style>
+<style scoped>
   .page-wrapper {
     flex: 1;
     display: flex;

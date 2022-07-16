@@ -6,14 +6,14 @@
   interface Room {
     host: string,
     name: string,
-    videoId: string,
+    videoId?: string,
     state: "playing" | "paused",
     time: number,
     rate: number,
   }
 
   interface Player {
-    loadVideoById: (videoId: string) => void,
+    loadVideoById: (videoId: string, startSeconds?: number) => void,
     getPlayerState: () => PlayerState,
     pauseVideo: () => void,
     seekTo: (seconds: number, allowSeekAhead?: boolean) => void,
@@ -38,6 +38,7 @@
     player: Player | null,
     videoUrlInput: string,
     done: boolean,
+    updateTimeIntervalId: number | null,
   }
 
   const db = getDatabase()
@@ -56,6 +57,7 @@
         player: null,
         videoUrlInput: "",
         done: false,
+        updateTimeIntervalId: null,
       }
     },
     computed: {
@@ -65,47 +67,102 @@
     },
     watch: {
       'roomId': {
-        async handler(toId: string, fromId: string, cleanup) {
+        async handler(toId: string | undefined, fromId: string | undefined, cleanup) {
           if (this.unsubscribeOnValue) this.unsubscribeOnValue()
+
 
           console.log(toId, fromId)
           if (fromId) await this.removeUserFromRoom(fromId)
-          if (toId) this.onJoinRoom(toId)
+          if (toId) {
+            const roomRef = ref(db, `rooms/${toId}`)
+
+            this.unsubscribeOnValue = onValue(roomRef, (snapshot) => {
+              const room = snapshot.val()
+
+              console.log("roomchange", room)
+
+              this.room = room
+            })
+
+            await this.addUserToRoom(toId)
+          }
 
           cleanup(() => {
             if (this.unsubscribeOnValue) this.unsubscribeOnValue()
           })
         }
       },
-      'room.videoId': {
-        handler(videoId: string) {
-          console.log("videoId", videoId)
-          this.player?.loadVideoById(videoId)
-        }
-      },
+      // 'room.videoId': {
+      //   handler(videoId: string) {
+      //     console.log("videoId", videoId)
+      //     this.player?.loadVideoById(videoId, this.room?.time || 0)
+      //   }
+      // },
       // 'room.time': {
       //   handler(time) {
       //     console.log("time", time)
       //     this.player.seekTo(time)
       //   }
       // },
-      'room.rate': {
-        handler(rate: number) {
-          console.log("rate", rate)
-          this.player?.setPlaybackRate(rate)
-        }
-      },
-      'room.state': {
-        handler(state: Room["state"]) {
-          if (this.room && this.room.host !== this.store.auth.userId) {
-            console.log("state", state)
+      // 'room.rate': {
+      //   handler(rate: number) {
+      //     console.log("rate", rate)
+      //     this.player?.setPlaybackRate(rate)
+      //   }
+      // },
+      'room': {
+        handler(newRoomValue: Required<Room>, oldRoomValue: Room | null) {
+          if (newRoomValue.videoId !== oldRoomValue?.videoId) this.player?.loadVideoById(newRoomValue.videoId, newRoomValue.time)
 
-            if (state === "paused" && this.player?.getPlayerState() !== PlayerState.PAUSED) this.player?.pauseVideo()
-            else if (state === "playing") {
-              console.log("seeking")
-              this.player?.seekTo(this.room.time, true)
-              this.player?.playVideo()
+          if (newRoomValue.host === this.store.auth.userId) {
+            if (this.updateTimeIntervalId === null) {
+              this.updateTimeIntervalId = setInterval(() => {
+                const roomRef = ref(db, `rooms/${this.roomId}`)
+
+                update(roomRef, {
+                  time: this.player?.getCurrentTime()
+                })
+              }, 5000)
             }
+          } else {
+            if (this.updateTimeIntervalId !== null) {
+              clearInterval(this.updateTimeIntervalId)
+              this.updateTimeIntervalId = null
+            }
+          }
+
+          // Only react to room player updates if your not the host, i.e. the host leads
+          if (newRoomValue.host !== this.store.auth.userId) {
+            // Only host should update time
+            if (this.updateTimeIntervalId !== null) clearTimeout(this.updateTimeIntervalId)
+
+            console.log(newRoomValue.host, this.store.auth.userId)
+            console.log("state", newRoomValue)
+
+            if (oldRoomValue) {
+              // If not paused to prevent calling seek event when host is just draggin the progress bar
+              if (newRoomValue.state !== "paused") {
+                if (Math.abs(newRoomValue.time - oldRoomValue.time) > 5) this.player?.seekTo(newRoomValue.time, true)
+              }
+            }
+
+            if (newRoomValue.state !== oldRoomValue?.state) {
+              switch(newRoomValue.state) {
+                case "playing": {
+                  this.player?.playVideo()
+                  break
+                }
+                case "paused": {
+                  this.player?.pauseVideo()
+                  break
+                }
+                default: {
+                  break
+                }
+              }
+            }
+
+            if (newRoomValue.rate !== oldRoomValue?.rate) this.player?.setPlaybackRate(newRoomValue.rate)
           }
         }
       },
@@ -116,19 +173,24 @@
       }
     },
     created() {
-      this.onJoinRoom(this.roomId)
+      this.addUserToRoom(this.roomId)
     },
     mounted() {
       // This code loads the IFrame Player API code asynchronously.
-      const tag = document.createElement('script');
-      tag.src = "https://www.youtube.com/iframe_api";
-      const firstScriptTag = document.getElementsByTagName('script')[0] as HTMLScriptElement;
-      firstScriptTag.parentNode!.insertBefore(tag, firstScriptTag);
+      const exists = document.getElementById('youtubeIframeApi');
+
+      if (!exists) {
+        const tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        tag.id = 'youtubeIframeApi';
+        const firstScriptTag = document.getElementsByTagName('script')[0] as HTMLScriptElement;
+        firstScriptTag.parentNode!.insertBefore(tag, firstScriptTag);
+      } else {
+        this.initYoutube();
+      }
+
     },
     methods: {
-      async onJoinRoom(roomId: string) {
-        await this.addUserToRoom(roomId)
-      },
       async addUserToRoom(roomId: string) { // TODO: move to room component
         console.log("roomId", roomId)
         const userRef = ref(db, "users" + `/${this.store.auth.userId}`)
@@ -196,16 +258,18 @@
 
         const roomRef = ref(db, "rooms" + `/${this.roomId}`)
 
-        if (event.data === PlayerState.PLAYING) {
-          update(roomRef, {
-            state: "playing",
-            time: this.player?.getCurrentTime()
-          })
-        } else if (event.data === PlayerState.PAUSED) {
-          update(roomRef, {
-            state: "paused",
-            time: this.player?.getCurrentTime()
-          })
+        if (this.store.auth.userId === this.room?.host) {
+          if (event.data === PlayerState.PLAYING) {
+            update(roomRef, {
+              state: "playing",
+              time: this.player?.getCurrentTime()
+            })
+          } else if (event.data === PlayerState.PAUSED) {
+            update(roomRef, {
+              state: "paused",
+              time: this.player?.getCurrentTime()
+            })
+          }
         }
         // if (event.data == window["YT"].PlayerState.PLAYING && !this.done) {
         //   setTimeout(this.stopVideo, 6000)
