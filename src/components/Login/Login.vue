@@ -1,105 +1,114 @@
 <script lang="ts">
-  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth"
-  import { getDatabase, ref, set } from "firebase/database"
-  import { defineComponent } from 'vue'
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth"
+import { getDatabase, ref, set } from "firebase/database"
+import { defineComponent } from 'vue'
+import Background from "../Background/Background.vue"
 
-  interface LoginState {
-    emailSignIn: string,
-    passwordSignIn: string,
-    emailSignUp: string,
-    passwordSignUp: string,
-    passwordRepeatSignUp: string,
-    activeTab: ActiveTab,
-  }
+interface LoginState {
+  emailSignIn: string,
+  passwordSignIn: string,
+  emailSignUp: string,
+  passwordSignUp: string,
+  passwordRepeatSignUp: string,
+  activeTab: ActiveTab,
+}
 
-  enum ActiveTab {
-    SIGN_IN,
-    SIGN_UP,
-  }
+enum ActiveTab {
+  SIGN_IN,
+  SIGN_UP,
+}
 
-  export default defineComponent({
-    setup() {
-      return {
-        ActiveTab,
-      }
-    },
-    data(): LoginState {
-      return {
-        emailSignIn: "",
-        passwordSignIn: "",
-        emailSignUp: "",
-        passwordSignUp: "",
-        passwordRepeatSignUp: "",
-        activeTab: ActiveTab.SIGN_IN,
-      }
-    },
-    methods: {
-      signUp() {
-        if (this.activeTab !== ActiveTab.SIGN_UP) return
+export default defineComponent({
+  setup() {
+    return {
+      ActiveTab,
+    }
+  },
+  data(): LoginState {
+    return {
+      emailSignIn: "",
+      passwordSignIn: "",
+      emailSignUp: "",
+      passwordSignUp: "",
+      passwordRepeatSignUp: "",
+      activeTab: ActiveTab.SIGN_IN,
+    }
+  },
+  methods: {
+    signUp() {
+      if (this.activeTab !== ActiveTab.SIGN_UP) return
 
-        if (this.passwordSignUp.length !== 0 && this.passwordSignUp === this.passwordRepeatSignUp) {
-          const auth = getAuth()
-          const db = getDatabase()
-
-          createUserWithEmailAndPassword(auth, this.emailSignUp, this.passwordSignUp)
-            .then(async (userCredential) => {
-              const user = userCredential.user
-              console.log("user", user)
-
-              const usersRef = ref(db, `users/${user.uid}`)
-
-              await set(usersRef, {
-                userId: user.uid,
-                displayName: "Karlsson på taket",
-              })
-            })
-            .catch((error) => {
-              console.log(error)
-              const errorCode = error.code;
-              const errorMessage = error.message;
-            })
-        }
-      },
-      signIn() {
-        if (this.activeTab !== ActiveTab.SIGN_IN) return
-
+      if (this.passwordSignUp.length !== 0 && this.passwordSignUp === this.passwordRepeatSignUp) {
         const auth = getAuth()
+        const db = getDatabase()
 
-        signInWithEmailAndPassword(auth, this.emailSignIn, this.passwordSignIn)
-          .then((userCredential) => {
+        createUserWithEmailAndPassword(auth, this.emailSignUp, this.passwordSignUp)
+          .then(async (userCredential) => {
             const user = userCredential.user
             console.log("user", user)
+
+            const usersRef = ref(db, `users/${user.uid}`)
+
+            await set(usersRef, {
+              userId: user.uid,
+              displayName: "Karlsson på taket",
+            })
           })
           .catch((error) => {
             console.log(error)
             const errorCode = error.code;
             const errorMessage = error.message;
           })
-        console.log("Sign in!")
-      },
-      changeTab(to: ActiveTab) {
-        this.activeTab = to
       }
-    }
+    },
+    signIn() {
+      if (this.activeTab !== ActiveTab.SIGN_IN) return
 
-  })
+      const auth = getAuth()
+
+      signInWithEmailAndPassword(auth, this.emailSignIn, this.passwordSignIn)
+        .then((userCredential) => {
+          const user = userCredential.user
+          console.log("user", user)
+        })
+        .catch((error) => {
+          console.log(error)
+          const errorCode = error.code;
+          const errorMessage = error.message;
+        })
+      console.log("Sign in!")
+    },
+    changeTab(to: ActiveTab) {
+      this.activeTab = to
+    }
+  },
+  components: { Background },
+})
 
 
 
 </script>
 
 <template>
+  <div class="background">
+    <Background />
+  </div>
   <div class="page-wrapper">
     <div class="login-wrapper">
       <div class="login-container">
-        <div class="overlay" :class="{ right: activeTab === ActiveTab.SIGN_IN}">
-          <div class="sign-in-info" :class="{ active: activeTab === ActiveTab.SIGN_IN, inactive: activeTab !== ActiveTab.SIGN_IN }">
+        <div class="overlay" :class="{ right: activeTab === ActiveTab.SIGN_IN }">
+          <div class="sign-in-info"
+            :class="{ active: activeTab === ActiveTab.SIGN_IN, inactive: activeTab !== ActiveTab.SIGN_IN }">
             <h3>Connect and play!</h3>
-            <p>Create your own room and share youtube videos with users from all around the world. Do this and much much more - sign up today.</p>
+            <p>Create your own room and share youtube videos with users from all around the world. Do this and much much
+              more - sign up today.</p>
             <button @click="() => changeTab(ActiveTab.SIGN_UP)">Sign up</button>
           </div>
-          <div class="sign-up-info" :class="{ active: activeTab === ActiveTab.SIGN_UP, inactive: activeTab !== ActiveTab.SIGN_UP }">
-            <p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Quaerat minus blanditiis dignissimos officia! Officia, unde error sit possimus molestiae ullam, natus dolor, dolorem officiis eius dignissimos assumenda dicta neque exercitationem?</p>
+          <div class="sign-up-info"
+            :class="{ active: activeTab === ActiveTab.SIGN_UP, inactive: activeTab !== ActiveTab.SIGN_UP }">
+            <p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Quaerat minus blanditiis dignissimos officia!
+              Officia, unde error sit possimus molestiae ullam, natus dolor, dolorem officiis eius dignissimos assumenda
+              dicta neque exercitationem?</p>
             <p>Already have an account?</p>
             <button @click="() => changeTab(ActiveTab.SIGN_IN)">Sign in</button>
           </div>
@@ -133,158 +142,187 @@
 </template>
 
 <style scoped lang="scss">
-  @import "@/assets/variables.scss";
+@import "@/assets/variables.scss";
 
-  .page-wrapper {
-    flex: 1;
-    display: flex;
-    padding: 100px;
-    justify-content: center;
-    align-items: center;
-  }
+.page-wrapper {
+  flex: 1;
+  display: flex;
+  padding: 100px;
+  justify-content: center;
+  align-items: center;
+}
 
+.login-wrapper {
+  flex: 1;
+}
+
+.login-container {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  min-width: 550px;
+  background-color: $color-lightgrey;
+}
+
+@media(min-width: 1100px) {
   .login-wrapper {
-    flex: 1;
+    margin-left: 50%;
   }
 
   .login-container {
-    position: relative;
-    display: flex;
-    gap: 8px;
-    min-width: 550px;
-    background-color: $color-lightgrey;
+    max-width: 800px;
   }
+}
 
-  @media(min-width: 1100px) {
-    .login-wrapper {
-      margin-left: 50%;
-    }
+.login-container>* {
+  flex-basis: 50%;
+  background-color: white;
+  padding: 28px 24px 40px 24px;
+}
 
-    .login-container {
-      max-width: 800px;
-    }
-  }
+h2 {
+  font-size: 24px;
+  font-weight: 600;
+}
 
-  .login-container > * {
-    flex-basis: 50%;
-    background-color: white;
-    padding: 28px 24px 40px 24px;
-  }
+.sign-in-form,
+.sign-up-form {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  margin-top: 20px;
+}
 
-  h2 {
-    font-size: 24px;
-    font-weight: 600;
-  }
+.sign-in-form>button,
+.sign-up-form>button {
+  font-size: 16px;
+  font-family: 'Poppins';
+  font-weight: 600;
+  background-color: white;
+  color: $color-primary;
+  padding: 5px 10px;
+  border-radius: 20px;
+  border: 1px solid $color-primary;
+  margin-top: 30px;
+}
 
-  .sign-in-form, .sign-up-form {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    margin-top: 20px;
-  }
+.sign-in-form>button:hover,
+.sign-up-form>button:hover {
+  background-color: $color-primary;
+  color: white;
+  border-color: white;
+}
 
-  .sign-in-form > button, .sign-up-form > button {
-    font-size: 16px;
-    font-family: 'Poppins';
-    font-weight: 600;
-    background-color: white;
-    color: $color-primary;
-    padding: 5px 10px;
-    border-radius: 20px;
-    border: 1px solid $color-primary;
-    margin-top: 30px;
-  }
+a {
+  margin-top: 15px;
+  text-align: center;
+  font-size: 14px;
+}
 
-  .sign-in-form > button:hover, .sign-up-form > button:hover {
-    background-color: $color-primary;
-    color: white;
-    border-color: white;
-  }
+label {
+  font-size: 16px;
+  font-weight: 300;
+  margin-bottom: 6px;
+}
 
-  a {
-    margin-top: 15px;
-    text-align: center;
-    font-size: 14px;
-  }
+input {
+  margin-bottom: 12px;
+}
 
-  label {
-    font-size: 16px;
-    font-weight: 300;
-    margin-bottom: 6px;
-  }
+.overlay {
+  background-color: $color-primary;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 100%;
+  overflow: hidden;
 
-  input {
-    margin-bottom: 12px;
-  }
+  transition: left 0.5s;
+}
 
-  .overlay {
-    background-color: $color-primary;
+.overlay.right {
+  left: 50%;
+}
+
+.sign-in-info,
+.sign-up-info {
+  z-index: 50;
+  position: absolute;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  padding: 28px 24px 40px 24px;
+
+  transition: left 0.5s;
+}
+
+.sign-up-info.inactive {
+  left: -100%;
+}
+
+.sign-up-info.active,
+.sign-in-info.active {
+  left: 0;
+}
+
+.sign-in-info.inactive {
+  left: 100%;
+}
+
+.sign-in-info>h3,
+.sign-up-info>h3 {
+  color: white;
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 18px;
+}
+
+.sign-in-info>p,
+.sign-up-info>p {
+  font-size: 14px;
+  font-weight: 200;
+  color: white;
+}
+
+.sign-in-info>button,
+.sign-up-info>button {
+  font-size: 16px;
+  font-family: 'Poppins';
+  font-weight: 600;
+  background-color: $color-primary;
+  color: white;
+  padding: 5px 10px;
+  border-radius: 20px;
+  border: 1px solid white;
+  margin-top: 30px;
+}
+
+.sign-in-info>button:hover,
+.sign-up-info>button:hover {
+  background-color: white;
+  color: $color-primary;
+  border-color: $color-primary;
+}
+
+.background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+
+  &::after {
+    content: "";
     position: absolute;
-    top: 0;
     left: 0;
-    width: 50%;
-    height: 100%;
-    overflow: hidden;
-
-    transition: left 0.5s;
-  }
-
-  .overlay.right {
-    left: 50%;
-  }
-
-  .sign-in-info, .sign-up-info {
-    z-index: 50;
-    position: absolute;
     top: 0;
+    height: 100%;
     width: 100%;
-    height: 100%;
-    padding: 28px 24px 40px 24px;
-
-    transition: left 0.5s;
+    /* background-color: rgba(0, 0, 0, 0.7); */
+    pointer-events: none;
   }
-
-  .sign-up-info.inactive {
-    left: -100%;
-  }
-
-  .sign-up-info.active, .sign-in-info.active  {
-    left: 0;
-  }
-
-  .sign-in-info.inactive {
-    left: 100%;
-  }
-
-  .sign-in-info > h3, .sign-up-info > h3 {
-    color: white;
-    font-size: 18px;
-    font-weight: 600;
-    margin-bottom: 18px;
-  }
-
-  .sign-in-info > p, .sign-up-info > p {
-    font-size: 14px;
-    font-weight: 200;
-    color: white;
-  }
-
-  .sign-in-info > button, .sign-up-info > button {
-    font-size: 16px;
-    font-family: 'Poppins';
-    font-weight: 600;
-    background-color: $color-primary;
-    color: white;
-    padding: 5px 10px;
-    border-radius: 20px;
-    border: 1px solid white;
-    margin-top: 30px;
-  }
-
-  .sign-in-info > button:hover, .sign-up-info > button:hover {
-    background-color: white;
-    color: $color-primary;
-    border-color: $color-primary;
-  }
+}
 
 </style>
