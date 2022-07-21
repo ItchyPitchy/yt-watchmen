@@ -29,18 +29,18 @@ export class Sphere extends Entity {
 
     const sphere = new Mesh(geometry, this.material);
     sphere.scale.set(1, 1, 1);
-    sphere.position.x = -2;
+    sphere.position.x = -3;
     this.object.add(sphere);
   }
 
   public update(dt: number, elapsedTime: number, context: Context): void {
     if (context.raycaster.intersectObject(this.object)[0]) {
-      this.frequency = this.frequency + (3 - this.frequency) * 0.05;
-      this.amplitude = this.amplitude + (0.4 - this.amplitude) * 0.05;
+      this.frequency = this.frequency + (6 - this.frequency) * 0.02;
+      this.amplitude = this.amplitude + (0.2 - this.amplitude) * 0.02;
 
     } else {
-      this.frequency = this.frequency + (1 - this.frequency) * 0.05;
-      this.amplitude = this.amplitude + (0.3 - this.amplitude) * 0.05;
+      this.frequency = this.frequency + (1 - this.frequency) * 0.02;
+      this.amplitude = this.amplitude + (0.3 - this.amplitude) * 0.02;
     }
 
     this.object.position.lerp(new Vector3(-context.pointer.x, -context.pointer.y, this.object.position.z), 0.05);
@@ -136,7 +136,7 @@ export class Sphere extends Entity {
       }
 
       void main() {
-        positionNoise = cnoise((position * frequency + time)) * amplitude;
+        positionNoise = cnoise((position * frequency + time * 0.2)) * amplitude;
 
         worldPosition = position + positionNoise * position;
         vec4 mvPosition = modelViewMatrix * vec4(worldPosition, 1.);
@@ -149,13 +149,12 @@ export class Sphere extends Entity {
     return `
       uniform vec3 color;
       uniform float time;
-      uniform float amplitude;
 
       varying vec3 worldPosition;
       varying float positionNoise;
 
       void main() {
-        gl_FragColor = vec4(color * positionNoise * (amplitude * 100.), 1.);
+        gl_FragColor = vec4(color * 2. + positionNoise * 2., 1.);
       }
     `
   }

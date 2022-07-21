@@ -19,7 +19,7 @@ export class Context {
   public readonly originalSpeed: number = 1;
 
   public readonly camera: PerspectiveCamera;
-  public readonly cameraOriginalPosition: Vector3 = new Vector3(0, 0, 3);
+  public readonly cameraOriginalPosition: Vector3 = new Vector3(0, 0, 2.5);
   public cameraTargetPosition: Vector3 | null = null;
 
   public cameraLookAt: Vector3 | null = null;
@@ -32,7 +32,7 @@ export class Context {
     this.clock = new Clock;
     this.scene = new Scene();
 
-    this.camera = new PerspectiveCamera(120, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
+    this.camera = new PerspectiveCamera(130, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
     this.camera.position.copy(this.cameraOriginalPosition);
     const controls = new OrbitControls(this.camera, canvas);
     controls.update();
@@ -47,10 +47,9 @@ export class Context {
     });
 
     window.addEventListener("resize", () => {
-      console.log(canvas.clientHeight, canvas.clientWidth)
-      this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
-
-      this.camera.aspect = canvas.clientWidth / canvas.clientHeight;
+      this.renderer.setSize(canvas.parentElement!.clientWidth, canvas.parentElement!.clientHeight);
+      this.camera.aspect = canvas.parentElement!.clientWidth / canvas.parentElement!.clientHeight;
+      this.camera.updateProjectionMatrix();
     });
   }
 

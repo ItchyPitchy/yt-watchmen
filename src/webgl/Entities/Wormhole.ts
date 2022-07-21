@@ -16,10 +16,10 @@ export class Wormhole extends Entity {
   constructor() {
     super();
 
-    const torusGeometry = new TorusGeometry(10, 3, 32, 200);
+    const torusGeometry = new TorusGeometry(10, 8, 32, 200);
 
     const torusUniforms = {
-      color: { value: new Color(0x6b9ab8) },
+      color: { value: new Color(0x27214f) },
       time: { value: 0 },
       frequency: { value: this.frequency },
       amplitude: { value: this.amplitude }
@@ -38,7 +38,7 @@ export class Wormhole extends Entity {
 
     this.object.add(this.torus);
 
-    const addStarsLayer = (count, color, size) => {
+    const addStarsLayer = (count: number, color: Color, size: number) => {
       const starsGeometry = new BufferGeometry;
       const posArray = new Float32Array(count * 3);
 
@@ -50,9 +50,9 @@ export class Wormhole extends Entity {
       };
 
       for (let i = 0; i < count; i++) {
-        const x = -13 + Math.random() * 26;
-        const y = -13 + Math.random() * 26;
-        const z = 3 - Math.random() * 6;
+        const x = 18 - Math.random() * 36;
+        const y = 18 - Math.random() * 36;
+        const z = 8 - Math.random() * 16;
 
         posArray.set([x, y, z], i * 3);
       }
@@ -74,19 +74,17 @@ export class Wormhole extends Entity {
 
     this.object.add(this.stars);
 
-    addStarsLayer(8000, new Color(0xffffff), 10); //white
-    addStarsLayer(2000, new Color(0x6b9ab8), 12); //blue
-    addStarsLayer(2000, new Color(0x27214f), 16); //purple
+    addStarsLayer(500, new Color(0xffffff), 40); //white
+    addStarsLayer(150, new Color(0x005e67), 70); //blue
+    addStarsLayer(150, new Color(0x27214f), 110); //purple
 
     this.object.rotation.y = Math.PI / 2;
     this.object.position.y = 9.5;
   }
 
   public update(dt: number, elapsedTime: number, context: Context): void {
-    this.torus.rotation.z += 0.2 * dt;
-    this.stars.rotation.z += 0.4 * dt;
-    this.frequency = this.frequency + (2 - this.frequency) * 0.05;
-    this.amplitude = this.amplitude + (0.005 - this.amplitude) * 0.05;
+    this.torus.rotation.z += 0.1 * dt;
+    this.stars.rotation.z += 0.3 * dt;
 
     this.torusMaterial.uniforms.amplitude.value = this.amplitude;
     this.torusMaterial.uniforms.frequency.value = this.frequency;
@@ -186,7 +184,7 @@ export class Wormhole extends Entity {
 
       void main() {
         timeNoise = cnoise(vec3(1,1,1) * 20. * time * 0.1);
-        positionNoise = cnoise((position * frequency + time)) * amplitude;
+        positionNoise = cnoise((position * frequency + time * 0.5)) * amplitude;
 
         worldPosition = position + (positionNoise) * position;
         vec4 mvPosition = modelViewMatrix * vec4(worldPosition, 1.);
@@ -295,13 +293,13 @@ export class Wormhole extends Entity {
       }
 
       void main() {
-          vec3 worldPosition = (modelMatrix * vec4(position, 1.)).xyz;
+          worldPosition = (modelMatrix * vec4(position, 1.)).xyz;
 
           vec4 mvPosition = viewMatrix * vec4(worldPosition, 1.);
 
-          float sizeNoise = cnoise(worldPosition) * size;
+          float sizeNoise = size / 2. + cnoise(position) * size/2.;
 
-          gl_PointSize = pow(sizeNoise - distance(eye, worldPosition),2.5);
+          gl_PointSize = pow(sizeNoise - distance(eye, worldPosition),1.);
 
           gl_Position = projectionMatrix * mvPosition;
       }
@@ -317,7 +315,7 @@ export class Wormhole extends Entity {
       void main() {
 
         vec2 cxy = gl_PointCoord * 2. - 1.;
-        float alpha = (1. - pow(dot(cxy,cxy),.1) + (-1./200. * distance(worldPosition, eye)));
+        float alpha = (.99 - pow(dot(cxy,cxy), .1) + (-1.5/100. * distance(worldPosition, eye)));
 
         gl_FragColor = vec4( color, alpha );
       }
