@@ -19,7 +19,7 @@
 
   .app {
     position: relative;
-    min-height: 110vh;
+    min-height: 100vh;
     display: flex;
     flex-direction: column;
   }
@@ -29,9 +29,9 @@
     top: 0;
     left: 0;
     width: 100%;
-    border-bottom: 1px solid aqua;
     display: flex;
     justify-content: space-evenly;
     padding: 10px;
+    z-index: 55;
   }
 </style>

@@ -1,17 +1,15 @@
 <script lang="ts">
-  import { defineComponent } from "vue"
-  import Video from "./Video.vue"
+import { defineComponent } from "vue";
+import Video from "./Video.vue";
 
-  export default defineComponent({
-    computed: {
-      roomId() {
-          return this.$route.params.id;
-      },
+export default defineComponent({
+  computed: {
+    roomId() {
+      return this.$route.params.id;
     },
-    components: { Video },
-})
-
-
+  },
+  components: { Video },
+});
 </script>
 
 <template>
