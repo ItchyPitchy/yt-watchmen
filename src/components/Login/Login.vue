@@ -10,7 +10,6 @@
     passwordSignUp: string,
     passwordRepeatSignUp: string,
     activeTab: ActiveTab,
-    isChangingTab: boolean,
   }
 
   enum ActiveTab {
@@ -32,11 +31,12 @@
         passwordSignUp: "",
         passwordRepeatSignUp: "",
         activeTab: ActiveTab.SIGN_IN,
-        isChangingTab: false,
       }
     },
     methods: {
       signUp() {
+        if (this.activeTab !== ActiveTab.SIGN_UP) return
+
         if (this.passwordSignUp.length !== 0 && this.passwordSignUp === this.passwordRepeatSignUp) {
           const auth = getAuth()
           const db = getDatabase()
@@ -61,6 +61,8 @@
         }
       },
       signIn() {
+        if (this.activeTab !== ActiveTab.SIGN_IN) return
+
         const auth = getAuth()
 
         signInWithEmailAndPassword(auth, this.emailSignIn, this.passwordSignIn)
@@ -76,12 +78,6 @@
         console.log("Sign in!")
       },
       changeTab(to: ActiveTab) {
-        // isChangingTab.value = true
-
-        // setTimeout(() => {
-        //   isChangingTab.value = false
-        //   activeTab.value = to
-        // }, 1000)
         this.activeTab = to
       }
     }
@@ -94,7 +90,7 @@
 
 <template>
   <div class="page-wrapper">
-    <div class="container-wrapper">
+    <div class="login-wrapper">
       <div class="login-container">
         <div class="overlay" :class="{ right: activeTab === ActiveTab.SIGN_IN}">
           <div class="sign-in-info" :class="{ active: activeTab === ActiveTab.SIGN_IN, inactive: activeTab !== ActiveTab.SIGN_IN }">
@@ -112,23 +108,23 @@
           <h2>Sign in</h2>
           <form @submit.prevent="signIn" class="sign-in-form">
             <label>Email</label>
-            <input v-model="emailSignIn" />
+            <input v-model="emailSignIn" :disabled="activeTab !== ActiveTab.SIGN_IN" />
             <label>Password</label>
-            <input type="password" v-model="passwordSignIn" />
-            <button type="submit">Sign in</button>
-            <RouterLink to="/">Glömt lösenord?</RouterLink>
+            <input type="password" v-model="passwordSignIn" :disabled="activeTab !== ActiveTab.SIGN_IN" />
+            <button type="submit" :disabled="activeTab !== ActiveTab.SIGN_IN">Sign in</button>
+            <RouterLink to="">Forgot password?</RouterLink>
           </form>
         </div>
         <div>
           <h2>Sign up</h2>
           <form @submit.prevent="signUp" class="sign-up-form">
             <label>Email</label>
-            <input v-model="emailSignUp" />
+            <input v-model="emailSignUp" :disabled="activeTab !== ActiveTab.SIGN_UP" />
             <label>Password</label>
-            <input type="password" v-model="passwordSignUp" />
+            <input type="password" v-model="passwordSignUp" :disabled="activeTab !== ActiveTab.SIGN_UP" />
             <label>Repeat password</label>
-            <input type="password" v-model="passwordRepeatSignUp" />
-            <button type="submit">Sign up</button>
+            <input type="password" v-model="passwordRepeatSignUp" :disabled="activeTab !== ActiveTab.SIGN_UP" />
+            <button type="submit" :disabled="activeTab !== ActiveTab.SIGN_UP">Sign up</button>
           </form>
         </div>
       </div>
@@ -136,16 +132,18 @@
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
+  @import "@/assets/variables.scss";
+
   .page-wrapper {
     flex: 1;
     display: flex;
-    padding: 0 100px;
+    padding: 100px;
     justify-content: center;
     align-items: center;
   }
 
-  .container-wrapper {
+  .login-wrapper {
     flex: 1;
   }
 
@@ -154,11 +152,11 @@
     display: flex;
     gap: 8px;
     min-width: 550px;
-    background-color: #d1d1d1;
+    background-color: $color-lightgrey;
   }
 
   @media(min-width: 1100px) {
-    .container-wrapper {
+    .login-wrapper {
       margin-left: 50%;
     }
 
@@ -169,7 +167,7 @@
 
   .login-container > * {
     flex-basis: 50%;
-    background-color: #fff;
+    background-color: white;
     padding: 28px 24px 40px 24px;
   }
 
@@ -190,15 +188,15 @@
     font-family: 'Poppins';
     font-weight: 600;
     background-color: white;
-    color: #6200ff;
+    color: $color-primary;
     padding: 5px 10px;
     border-radius: 20px;
-    border: 1px solid #6200ff;
+    border: 1px solid $color-primary;
     margin-top: 30px;
   }
 
   .sign-in-form > button:hover, .sign-up-form > button:hover {
-    background-color: #6200ff;
+    background-color: $color-primary;
     color: white;
     border-color: white;
   }
@@ -209,10 +207,6 @@
     font-size: 14px;
   }
 
-  a:visited {
-    color: unset;
-  }
-
   label {
     font-size: 16px;
     font-weight: 300;
@@ -220,16 +214,11 @@
   }
 
   input {
-    font-family: 'Poppins';
-    font-size: 13px;
-    padding: 6px;
-    border: 1px solid #6200ff;
-    border-radius: 4px;
     margin-bottom: 12px;
   }
 
   .overlay {
-    background-color: #6200ff;
+    background-color: $color-primary;
     position: absolute;
     top: 0;
     left: 0;
@@ -284,7 +273,7 @@
     font-size: 16px;
     font-family: 'Poppins';
     font-weight: 600;
-    background-color: #6200ff;
+    background-color: $color-primary;
     color: white;
     padding: 5px 10px;
     border-radius: 20px;
@@ -294,8 +283,8 @@
 
   .sign-in-info > button:hover, .sign-up-info > button:hover {
     background-color: white;
-    color: #6200ff;
-    border-color: #6200ff;
+    color: $color-primary;
+    border-color: $color-primary;
   }
 
 </style>

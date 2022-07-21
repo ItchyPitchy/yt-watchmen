@@ -114,42 +114,44 @@
         handler(newRoomValue: Required<Room>, oldRoomValue: Room | null) {
           if (newRoomValue.videoId !== oldRoomValue?.videoId) this.player?.loadVideoById(newRoomValue.videoId, newRoomValue.time)
 
-          if (newRoomValue.host === this.store.auth.userId) {
-            if (this.updateTimeIntervalId === null) {
-              this.updateTimeIntervalId = setInterval(() => {
-                const roomRef = ref(db, `rooms/${this.roomId}`)
+          // TODO: this is not working properly (dunno why)
 
-                update(roomRef, {
-                  time: this.player?.getCurrentTime()
-                })
-              }, 5000)
-            }
-          } else {
-            if (this.updateTimeIntervalId !== null) {
-              clearInterval(this.updateTimeIntervalId)
-              this.updateTimeIntervalId = null
-            }
-          }
+          // if (newRoomValue.host === this.store.auth.userId) {
+          //   if (this.updateTimeIntervalId === null) {
+          //     this.updateTimeIntervalId = setInterval(() => {
+          //       const roomRef = ref(db, `rooms/${this.roomId}`)
+
+          //       update(roomRef, {
+          //         time: this.player?.getCurrentTime()
+          //       })
+          //     }, 5000)
+          //   }
+          // } else {
+          //   if (this.updateTimeIntervalId !== null) {
+          //     clearInterval(this.updateTimeIntervalId)
+          //     this.updateTimeIntervalId = null
+          //   }
+          // }
 
           // Only react to room player updates if your not the host, i.e. the host leads
           if (newRoomValue.host !== this.store.auth.userId) {
-            // Only host should update time
-            if (this.updateTimeIntervalId !== null) clearTimeout(this.updateTimeIntervalId)
 
             console.log(newRoomValue.host, this.store.auth.userId)
             console.log("state", newRoomValue)
 
             if (oldRoomValue) {
-              // If not paused to prevent calling seek event when host is just draggin the progress bar
-              if (newRoomValue.state !== "paused") {
-                if (Math.abs(newRoomValue.time - oldRoomValue.time) > 5) this.player?.seekTo(newRoomValue.time, true)
-              }
+              // Only seek to specific progress if state is not paused,
+              // this to prevent calling seek event when host is just draggin the progress bar
+              // if (newRoomValue.state !== "paused") {
+              //   if (Math.abs(newRoomValue.time - oldRoomValue.time) > 5) this.player?.seekTo(newRoomValue.time, true)
+              // }
             }
 
             if (newRoomValue.state !== oldRoomValue?.state) {
               switch(newRoomValue.state) {
                 case "playing": {
                   this.player?.playVideo()
+                  this.player?.seekTo(newRoomValue.time, true)
                   break
                 }
                 case "paused": {
@@ -177,16 +179,16 @@
     },
     mounted() {
       // This code loads the IFrame Player API code asynchronously.
-      const exists = document.getElementById('youtubeIframeApi');
+      const exists = document.getElementById('youtubeIframeApi')
 
       if (!exists) {
         const tag = document.createElement('script');
-        tag.src = "https://www.youtube.com/iframe_api";
-        tag.id = 'youtubeIframeApi';
-        const firstScriptTag = document.getElementsByTagName('script')[0] as HTMLScriptElement;
-        firstScriptTag.parentNode!.insertBefore(tag, firstScriptTag);
+        tag.src = "https://www.youtube.com/iframe_api"
+        tag.id = 'youtubeIframeApi'
+        const firstScriptTag = document.getElementsByTagName('script')[0] as HTMLScriptElement
+        firstScriptTag.parentNode!.insertBefore(tag, firstScriptTag)
       } else {
-        this.initYoutube();
+        this.initYoutube()
       }
 
     },

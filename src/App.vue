@@ -14,12 +14,12 @@
   </div>
 </template>
 
-<style>
-  @import "@/assets/base.css";
+<style lang="scss">
+  @import "@/assets/base.scss";
 
   .app {
     position: relative;
-    min-height: 100vh;
+    min-height: 110vh;
     display: flex;
     flex-direction: column;
   }
