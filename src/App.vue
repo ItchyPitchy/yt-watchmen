@@ -4,12 +4,12 @@
 
 <template>
   <div class="app">
-    <header>
+    <!-- <header>
       <nav>
         <RouterLink to="/">Home</RouterLink>
         <RouterLink to="/rooms">Rooms</RouterLink>
       </nav>
-    </header>
+    </header> -->
     <RouterView />
   </div>
 </template>
