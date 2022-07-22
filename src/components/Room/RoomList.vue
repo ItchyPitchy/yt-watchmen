@@ -6,6 +6,7 @@ import BeenInView from "../common/BeenInView.vue";
 interface Room {
   id: string,
   host: string,
+  hostUserName: string,
   name: string,
   videoId?: string,
   state: "playing" | "paused",
@@ -74,6 +75,8 @@ export default defineComponent({
 </template>
 
 <style scoped lang="scss">
+@import "@/assets/variables.scss";
+
 .room-list {
   display: flex;
   flex-direction: column;
@@ -82,8 +85,8 @@ export default defineComponent({
 
 li {
   position: relative;
-  background-color: #6200ff;
-  color: white;
+  // background-color: #6200ff;
+  // color: white;
   opacity: 0;
   transform: translateX(50px);
   transition: transform .5s ease-out, opacity .5s ease-out;

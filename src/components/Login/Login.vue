@@ -8,6 +8,7 @@ interface LoginState {
   emailSignIn: string,
   passwordSignIn: string,
   emailSignUp: string,
+  userNameSignUp: string,
   passwordSignUp: string,
   passwordRepeatSignUp: string,
   activeTab: ActiveTab,
@@ -29,6 +30,7 @@ export default defineComponent({
       emailSignIn: "",
       passwordSignIn: "",
       emailSignUp: "",
+      userNameSignUp: "",
       passwordSignUp: "",
       passwordRepeatSignUp: "",
       activeTab: ActiveTab.SIGN_IN,
@@ -51,13 +53,13 @@ export default defineComponent({
 
             await set(usersRef, {
               userId: user.uid,
-              displayName: "Karlsson på taket",
+              displayName: this.userNameSignUp,
             })
           })
           .catch((error) => {
             console.log(error)
-            const errorCode = error.code;
-            const errorMessage = error.message;
+            const errorCode = error.code
+            const errorMessage = error.message
           })
       }
     },
@@ -73,8 +75,8 @@ export default defineComponent({
         })
         .catch((error) => {
           console.log(error)
-          const errorCode = error.code;
-          const errorMessage = error.message;
+          const errorCode = error.code
+          const errorMessage = error.message
         })
       console.log("Sign in!")
     },
@@ -129,6 +131,8 @@ export default defineComponent({
           <form @submit.prevent="signUp" class="sign-up-form">
             <label>Email</label>
             <input v-model="emailSignUp" :disabled="activeTab !== ActiveTab.SIGN_UP" />
+            <label>Username</label>
+            <input v-model="userNameSignUp" :disabled="activeTab !== ActiveTab.SIGN_UP" />
             <label>Password</label>
             <input type="password" v-model="passwordSignUp" :disabled="activeTab !== ActiveTab.SIGN_UP" />
             <label>Repeat password</label>
@@ -162,9 +166,11 @@ export default defineComponent({
   gap: 8px;
   min-width: 550px;
   background-color: $color-lightgrey;
+  border-radius: 4px;
+  overflow: hidden;
 }
 
-@media(min-width: 1100px) {
+@media(min-width: 1000px) {
   .login-wrapper {
     margin-left: 50%;
   }
@@ -179,6 +185,7 @@ export default defineComponent({
   background-color: white;
   padding: 28px 24px 40px 24px;
 }
+
 
 h2 {
   font-size: 24px;
