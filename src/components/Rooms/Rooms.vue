@@ -2,7 +2,7 @@
 import { defineComponent } from "vue"
 import { getAuth } from "firebase/auth"
 import { getDatabase, ref, push, set, type Unsubscribe, onValue, get, child } from "firebase/database"
-import RoomList from "./RoomList.vue"
+import RoomList from "../Rooms/RoomList.vue"
 import ContentSlideEffect from "../common/ContentSlideEffect.vue"
 
 interface Room {
@@ -42,6 +42,7 @@ export default defineComponent({
   created() {
     const dbRef = ref(db)
     const roomsRef = ref(db, "rooms")
+
     this.unsubscribeOnRoomsValue = onValue(roomsRef, async (snapshot) => {
       if (snapshot.exists()) {
         const tempRooms: Array<Omit<Room, "hostUserName">> = []
@@ -65,7 +66,6 @@ export default defineComponent({
         })
 
         const rooms: Room[] = []
-
 
         // TODO: find a better way of displaying host username
         for (const room of tempRooms) {
@@ -97,6 +97,7 @@ export default defineComponent({
     async createRoom() {
       const roomsRef = ref(db, "rooms")
       const newRoomRef = await push(roomsRef)
+
       await set(newRoomRef, {
         host: auth.currentUser!.uid,
         name: this.roomName,
