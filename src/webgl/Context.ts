@@ -34,8 +34,8 @@ export class Context {
 
     this.camera = new PerspectiveCamera(130, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
     this.camera.position.copy(this.cameraOriginalPosition);
-    const controls = new OrbitControls(this.camera, canvas);
-    controls.update();
+    // const controls = new OrbitControls(this.camera, canvas);
+    // controls.update();
 
     this.renderer = new WebGLRenderer({ canvas, antialias: true, alpha: true });
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);

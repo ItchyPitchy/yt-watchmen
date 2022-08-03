@@ -35,15 +35,15 @@ export class Sphere extends Entity {
 
   public update(dt: number, elapsedTime: number, context: Context): void {
     if (context.raycaster.intersectObject(this.object)[0]) {
-      this.frequency = this.frequency + (6 - this.frequency) * 0.02;
-      this.amplitude = this.amplitude + (0.2 - this.amplitude) * 0.02;
+      this.frequency = this.frequency + (3 - this.frequency) * 0.016;
+      this.amplitude = this.amplitude + (0.2 - this.amplitude) * 0.016;
 
     } else {
-      this.frequency = this.frequency + (1 - this.frequency) * 0.02;
-      this.amplitude = this.amplitude + (0.3 - this.amplitude) * 0.02;
+      this.frequency = this.frequency + (1 - this.frequency) * 0.016;
+      this.amplitude = this.amplitude + (0.3 - this.amplitude) * 0.016;
     }
 
-    this.object.position.lerp(new Vector3(-context.pointer.x, -context.pointer.y, this.object.position.z), 0.05);
+    this.object.position.lerp(new Vector3(-context.pointer.x, -context.pointer.y, this.object.position.z), 0.008);
 
     this.material.uniforms.amplitude.value = this.amplitude;
     this.material.uniforms.frequency.value = this.frequency;
