@@ -71,7 +71,6 @@ export default defineComponent({
       signInWithEmailAndPassword(auth, this.emailSignIn, this.passwordSignIn)
         .then((userCredential) => {
           const user = userCredential.user
-          console.log("user", user)
         })
         .catch((error) => {
           console.log(error)

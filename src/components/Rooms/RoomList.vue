@@ -54,7 +54,6 @@ export default defineComponent({
     setItemRef(el: Element | null, index: number) {
       if (el) {
         this.itemRefs[index] = el
-        console.log(this.itemRefs)
       }
     }
   },

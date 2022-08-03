@@ -1,6 +1,6 @@
 <script lang="ts">
 import { defineComponent, inject } from "vue"
-import { getDatabase, onValue, push, ref, type Unsubscribe } from "firebase/database"
+import { getDatabase, onValue, push, ref, type Unsubscribe, serverTimestamp } from "firebase/database"
 import type { Store } from "@/main"
 import ColorSlideEffect from "../common/ColorSlideEffect.vue"
 
@@ -80,8 +80,9 @@ export default defineComponent({
       const roomMessagesRef = ref(db, `messages/${this.roomId}`);
       await push(roomMessagesRef, {
         senderId: this.store.auth.userId,
-        senderName: this.store.auth.userId,
+        senderName: this.store.auth.userName,
         text: this.messageInput,
+        createdAt: serverTimestamp(),
       });
       this.messageInput = "";
     },

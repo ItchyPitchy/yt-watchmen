@@ -1,9 +1,9 @@
 <script lang="ts">
-import { defineComponent } from "vue"
-import { getAuth } from "firebase/auth"
+import { defineComponent, inject } from "vue"
 import { getDatabase, ref, push, set, type Unsubscribe, onValue, get, child } from "firebase/database"
 import RoomList from "../Rooms/RoomList.vue"
 import ContentSlideEffect from "../common/ContentSlideEffect.vue"
+import type { Store } from "@/main"
 
 interface Room {
   id: string,
@@ -26,10 +26,14 @@ interface State {
   hover: boolean,
 }
 
-const auth = getAuth()
 const db = getDatabase()
 
 export default defineComponent({
+  setup() {
+    return {
+      store: inject('store') as Store,
+    }
+  },
   data(): State {
     return {
       unsubscribeOnRoomsValue: null,
@@ -74,7 +78,7 @@ export default defineComponent({
           if (hostUserSnapshot.exists()) {
             rooms.push({
               ...room,
-              hostUserName: hostUserSnapshot.val().userName,
+              hostUserName: hostUserSnapshot.val().displayName,
             })
           } else {
             throw new Error("host user not found")
@@ -92,17 +96,19 @@ export default defineComponent({
   methods: {
     async onCreateRoom() {
       const roomId = await this.createRoom()
-      this.$router.push(`/rooms/${roomId}`)
+      // this.$router.push(`/rooms/${roomId}`)
     },
     async createRoom() {
       const roomsRef = ref(db, "rooms")
       const newRoomRef = await push(roomsRef)
 
       await set(newRoomRef, {
-        host: auth.currentUser!.uid,
+        host: this.store.auth.userId,
         name: this.roomName,
+        type: this.type,
         rate: 1,
         time: 0,
+        state: "paused",
       })
       return newRoomRef.key
     }

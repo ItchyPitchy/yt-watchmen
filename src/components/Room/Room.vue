@@ -118,12 +118,12 @@ export default defineComponent({
     },
     async onPlayerStateChange(payload: { state: 'playing' | 'paused', time: number }) {
       const roomRef = ref(db, "rooms" + `/${this.roomId}`)
-
+      console.log(payload)
       update(roomRef, payload)
     },
     async onPlayerPlaybackRateChange(payload: { rate: number }) {
       const roomRef = ref(db, "rooms" + `/${this.roomId}`)
-
+      console.log(payload)
       update(roomRef, payload)
     },
     async loadVideo() {
@@ -156,7 +156,7 @@ export default defineComponent({
       </div>
     </div>
     <div class="chat-container">
-      <form class="load-video-container">
+      <form @submit.prevent class="load-video-container">
         <input v-model="videoUrlInput" placeholder="video url here" />
         <ColorSlideEffect :active="loadButtonHover" :inactive-bg-color="'#6200ff'" :inactive-text-color="'white'"
           :active-bg-color="'#310080'" :active-text-color="'white'">
