@@ -1,3 +1,4 @@
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { createRouter, createWebHashHistory } from "vue-router";
 import Login from "../components/Login/Login.vue";
 import Room from "../components/Room/Room.vue";
@@ -28,19 +29,27 @@ const router = createRouter({
       }
     },
   ]
-});
+})
 
+const auth = getAuth()
 
-// router.beforeEach((to, from, next) => {
-//   const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
+const getCurrentUser = () => {
+  return new Promise((resolve, reject) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      unsubscribe()
+      resolve(user)
+    }, reject)
+  })
+}
 
-//   console.log("currentUser", store.auth.loggedIn)
+router.beforeEach(async (to, from, next) => {
+  const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
 
-//   if (requiresAuth && !store.auth.loggedIn) {
-//     next('/')
-//   } else {
-//     next()
-//   }
-// })
+  if (requiresAuth && !await getCurrentUser()) {
+    next('/')
+  } else {
+    next()
+  }
+})
 
 export default router;

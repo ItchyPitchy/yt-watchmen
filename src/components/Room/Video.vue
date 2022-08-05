@@ -145,6 +145,7 @@
             'autoplay': 0,
             'playsinline': 1,
             'enablejsapi': 1,
+            'modestbranding': 1,
           },
           events: {
             "onReady": this.onPlayerReady,
