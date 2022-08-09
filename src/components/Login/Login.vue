@@ -1,6 +1,6 @@
 <script lang="ts">
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth"
-import { getDatabase, ref, set } from "firebase/database"
+import { doc, getFirestore, setDoc } from "firebase/firestore"
 import { defineComponent } from 'vue'
 import Background from "../Background/Background.vue"
 
@@ -42,16 +42,15 @@ export default defineComponent({
 
       if (this.passwordSignUp.length !== 0 && this.passwordSignUp === this.passwordRepeatSignUp) {
         const auth = getAuth()
-        const db = getDatabase()
+        const db = getFirestore()
 
         createUserWithEmailAndPassword(auth, this.emailSignUp, this.passwordSignUp)
           .then(async (userCredential) => {
             const user = userCredential.user
             console.log("user", user)
 
-            const usersRef = ref(db, `users/${user.uid}`)
-
-            await set(usersRef, {
+            const userRef = doc(db, 'users', `${user.uid}`)
+            await setDoc(userRef, {
               userId: user.uid,
               displayName: this.userNameSignUp,
             })

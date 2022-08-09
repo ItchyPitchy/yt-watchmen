@@ -4,19 +4,7 @@ import User from "../icons/User.vue";
 import CustomIcon from "../icons/CustomIcon.vue";
 import Crown from "../icons/Crown.vue";
 import ColorSlideEffect from "../common/ColorSlideEffect.vue";
-
-interface Room {
-  id: string,
-  host: string,
-  hostUserName: string,
-  name: string,
-  videoId?: string,
-  state: "playing" | "paused",
-  time: number,
-  rate: number,
-  members?: { [key: string]: boolean },
-  online: number,
-}
+import type { RoomExtended } from "./Rooms.vue";
 
 export default defineComponent({
   data() {
@@ -26,7 +14,7 @@ export default defineComponent({
   },
   props: {
     room: {
-      type: Object as PropType<Room>,
+      type: Object as PropType<RoomExtended>,
       required: true,
     },
   },
@@ -44,14 +32,14 @@ export default defineComponent({
           <div class="top-row">
             <h4>{{ room.name }}</h4>
             <div class="user-container">
-              <div>{{ room.online }}</div>
+              <div>{{ room.membersOnline }}</div>
               <CustomIcon :size="30">
                 <User />
               </CustomIcon>
             </div>
           </div>
           <div class="host-container">
-            <p>{{ room.hostUserName }}</p>
+            <p>{{ room.hostDisplayName }}</p>
             <CustomIcon :size="15">
               <Crown />
             </CustomIcon>

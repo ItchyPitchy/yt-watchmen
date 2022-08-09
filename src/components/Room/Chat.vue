@@ -1,14 +1,9 @@
 <script lang="ts">
 import { defineComponent, inject } from "vue"
-import { getDatabase, onValue, push, ref, type Unsubscribe, serverTimestamp } from "firebase/database"
 import type { Store } from "@/main"
+import { addDoc, collection, getFirestore, onSnapshot, Timestamp, type Unsubscribe } from "firebase/firestore"
 import ColorSlideEffect from "../common/ColorSlideEffect.vue"
-
-interface Message {
-  senderId: string,
-  senderName: string,
-  text: string,
-}
+import type { Message } from "../Rooms/Rooms.vue"
 
 interface State {
   messages: Message[],
@@ -17,7 +12,7 @@ interface State {
   unsubscribeOnMessageValue: Unsubscribe | null,
 }
 
-const db = getDatabase()
+const db = getFirestore()
 
 export default defineComponent({
   setup() {
@@ -46,15 +41,23 @@ export default defineComponent({
         if (this.unsubscribeOnMessageValue)
           this.unsubscribeOnMessageValue();
         if (toId) {
-          const roomMessagesRef = ref(db, `messages/${toId}`);
-          this.unsubscribeOnMessageValue = onValue(roomMessagesRef, (snapshot) => {
-            if (snapshot.exists()) {
-              const messages: {
-                [key: string]: Message;
-              } = snapshot.val();
-              this.messages = Object.values(messages).reverse();
-            }
-          });
+          const roomMessagesRef = collection(db, 'rooms', `${toId}`, 'messages')
+
+          this.unsubscribeOnMessageValue = onSnapshot(roomMessagesRef, (snapshot) => {
+            this.messages = snapshot.docs
+              .filter(messageSnapshot => messageSnapshot.exists())
+              .map((messageSnapshot) => messageSnapshot.data() as Message)
+              .reverse()
+          })
+
+          // this.unsubscribeOnMessageValue = onValue(roomMessagesRef, (snapshot) => {
+          //   if (snapshot.exists()) {
+          //     const messages: {
+          //       [key: string]: Message;
+          //     } = snapshot.val();
+          //     this.messages = Object.values(messages).reverse();
+          //   }
+          // });
         }
         cleanup(() => {
           if (this.unsubscribeOnMessageValue)
@@ -64,26 +67,39 @@ export default defineComponent({
     },
   },
   created() {
-    const roomMessagesRef = ref(db, `messages/${this.roomId}`)
+    const roomMessagesRef = collection(db, 'rooms', `${this.roomId}`, 'messages')
 
-    this.unsubscribeOnMessageValue = onValue(roomMessagesRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const messages: {
-          [key: string]: Message;
-        } = snapshot.val();
-        this.messages = Object.values(messages).reverse();
-      }
+    this.unsubscribeOnMessageValue = onSnapshot(roomMessagesRef, (snapshot) => {
+      this.messages = snapshot.docs
+        .filter(messageSnapshot => messageSnapshot.exists())
+        .map((messageSnapshot) => messageSnapshot.data() as Message)
+        .reverse()
     })
   },
   methods: {
     async onSendMessage() {
-      const roomMessagesRef = ref(db, `messages/${this.roomId}`);
-      await push(roomMessagesRef, {
+      const roomMessagesRef = collection(db, 'rooms', `${this.roomId}`, 'messages')
+
+      console.log({
         senderId: this.store.auth.userId,
         senderName: this.store.auth.userName,
         text: this.messageInput,
-        createdAt: serverTimestamp(),
-      });
+        createdAt: Timestamp.now(),
+      })
+
+      await addDoc(roomMessagesRef, {
+        senderId: this.store.auth.userId,
+        senderName: this.store.auth.userName,
+        text: this.messageInput,
+        createdAt: Timestamp.now(),
+      })
+
+      // await push(roomMessagesRef, {
+      //   senderId: this.store.auth.userId,
+      //   senderName: this.store.auth.userName,
+      //   text: this.messageInput,
+      //   createdAt: serverTimestamp(),
+      // });
       this.messageInput = "";
     },
   },

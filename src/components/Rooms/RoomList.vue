@@ -2,23 +2,11 @@
 import { defineComponent, type PropType } from "vue";
 import RoomItem from "./RoomItem.vue";
 import BeenInView from "../common/BeenInView.vue";
-
-interface Room {
-  id: string,
-  host: string,
-  hostUserName: string,
-  name: string,
-  videoId?: string,
-  state: "playing" | "paused",
-  time: number,
-  rate: number,
-  members?: { [key: string]: boolean },
-  online: number,
-}
+import type { RoomExtended } from "./Rooms.vue";
 
 interface State {
   itemRefs: Element[],
-  roomsExtended: Array<Room & { addedWhileInView: boolean }>
+  roomsExtended: Array<RoomExtended & { addedWhileInView: boolean }>
 }
 
 export default defineComponent({
@@ -30,9 +18,9 @@ export default defineComponent({
   },
   props: {
     rooms: {
-      type: Array as PropType<Room[]>,
+      type: Array as PropType<RoomExtended[]>,
       required: true,
-    }
+    },
   },
   created() {
     this.roomsExtended = this.rooms.map(room => ({
@@ -42,7 +30,7 @@ export default defineComponent({
   },
   watch: {
     'rooms': {
-      handler(newRooms: Room[], oldRooms: Room[]) {
+      handler(newRooms: RoomExtended[], oldRooms: RoomExtended[]) {
         this.roomsExtended = newRooms.map((newRoom) => ({
           ...newRoom,
           addedWhileInView: oldRooms.some((oldRoom) => oldRoom.id !== newRoom.id)
@@ -66,7 +54,7 @@ export default defineComponent({
     <ul class="room-list">
       <BeenInView v-for="(room, index) of roomsExtended" :elementRef="itemRefs[index]" :disableStartInView="room.addedWhileInView" :key="room.id">
         <li :ref="(el) => setItemRef(el as Element | null, index)">
-          <RoomItem :room="room"/>
+          <RoomItem :room="room" />
         </li>
       </BeenInView>
     </ul>

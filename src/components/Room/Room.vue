@@ -1,12 +1,12 @@
 <script lang="ts">
 import { defineComponent, inject } from "vue"
-import { getDatabase, onValue, ref, set, update, type Unsubscribe } from "firebase/database"
+import { addDoc, collection, doc, getFirestore, onSnapshot, setDoc, updateDoc, type Unsubscribe } from "firebase/firestore"
 import type { Store } from "@/main"
 import ColorSlideEffect from "../common/ColorSlideEffect.vue"
 import Video from "./Video.vue"
 import Chat from "./Chat.vue"
 
-const db = getDatabase()
+const db = getFirestore()
 
 interface Room {
   id: string,
@@ -54,15 +54,11 @@ export default defineComponent({
 
         if (fromId) await this.removeUserFromRoom(fromId)
         if (toId) {
-          const roomRef = ref(db, "rooms" + `/${toId}`)
+          const roomRef = doc(db, 'rooms', `${toId}`)
 
-          this.unsubscribeOnRoomValue = onValue(roomRef, (snapshot) => {
+          this.unsubscribeOnRoomValue = onSnapshot(roomRef, (snapshot) => {
             if (snapshot.exists()) {
-              const room = snapshot.val()
-
-              console.log("roomchange", room)
-
-              this.roomData = room
+              this.roomData = snapshot.data() as Room
             }
           })
 
@@ -80,51 +76,47 @@ export default defineComponent({
   },
   methods: {
     async addUserToRoom(roomId: string) {
-      const userRef = ref(db, "users" + `/${this.store.auth.userId}`)
+      const roomMembersMeRef = doc(db, 'rooms', `${roomId}`, 'members', `${this.store.auth.userId!}`)
 
-      await update(userRef, {
-        room: roomId,
-      })
-
-      const roomMembersRef = ref(db, "rooms" + `/${roomId}/members`)
-
-      await update(roomMembersRef, {
-        [this.store.auth.userId!]: true,
+      await setDoc(roomMembersMeRef, {
+        isOnline: true,
       })
     },
     async removeUserFromRoom(roomId: string) {
-      const userRef = ref(db, "users" + `/${this.store.auth.userId}`)
+      const roomMembersMeRef = doc(db, 'rooms', `${roomId}`, 'members', `${this.store.auth.userId!}`)
 
-      await update(userRef, {
-        room: null
-      })
-
-      const roomMembersRef = ref(db, "rooms" + `/${roomId}/members`)
-
-      await update(roomMembersRef, {
-        [this.store.auth.userId!]: false,
+      await setDoc(roomMembersMeRef, {
+        isOnline: false,
       })
     },
     async onPlayerReady() {
-      const roomRef = ref(db, "rooms" + `/${this.roomId}`)
+      const roomRef = doc(db, 'rooms', `${this.roomId}`)
 
-      this.unsubscribeOnRoomValue = onValue(roomRef, (snapshot) => {
-        const room = snapshot.val()
+      this.unsubscribeOnRoomValue = onSnapshot(roomRef, (snapshot) => {
+        if (snapshot.exists()) {
+          this.roomData = snapshot.data() as Room
+        }
 
-        console.log("roomchange", room)
-
-        this.roomData = room
+        console.log("roomchange", snapshot.data())
       })
     },
     async onPlayerStateChange(payload: { state: 'playing' | 'paused', time: number }) {
-      const roomRef = ref(db, "rooms" + `/${this.roomId}`)
-      console.log(payload)
-      update(roomRef, payload)
+      const roomRef = doc(db, 'rooms', `${this.roomId}`)
+
+      await updateDoc(roomRef, payload)
+
+      // const roomRef = ref(db, "rooms" + `/${this.roomId}`)
+
+      // update(roomRef, payload)
     },
     async onPlayerPlaybackRateChange(payload: { rate: number }) {
-      const roomRef = ref(db, "rooms" + `/${this.roomId}`)
-      console.log(payload)
-      update(roomRef, payload)
+      const roomRef = doc(db, 'rooms', `${this.roomId}`)
+
+      await updateDoc(roomRef, payload)
+
+      // const roomRef = ref(db, "rooms" + `/${this.roomId}`)
+
+      // update(roomRef, payload)
     },
     async loadVideo() {
       const url = new URL(this.videoUrlInput)
@@ -133,9 +125,15 @@ export default defineComponent({
       if (urlParams.has("v")) {
         const videoId = urlParams.get("v")
 
-        const roomVideoIdRef = ref(db, `rooms/${this.roomId}/videoId`)
+        const roomRef = doc(db, 'rooms', `${this.roomId}`)
 
-        await set(roomVideoIdRef, videoId)
+        await updateDoc(roomRef, {
+          videoId: videoId,
+        })
+        
+        // const roomVideoIdRef = ref(db, `rooms/${this.roomId}/videoId`)
+
+        // await set(roomVideoIdRef, videoId)
       }
     },
   },
