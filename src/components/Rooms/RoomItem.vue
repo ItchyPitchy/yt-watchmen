@@ -17,6 +17,14 @@ export default defineComponent({
       type: Object as PropType<RoomExtended>,
       required: true,
     },
+    onlineMembers: {
+      type: Number,
+      required: true,
+    },
+    hostDisplayName: {
+      type: String,
+      required: true,
+    },
   },
   components: { User, CustomIcon, Crown, ColorSlideEffect }
 })
@@ -32,14 +40,14 @@ export default defineComponent({
           <div class="top-row">
             <h4>{{ room.name }}</h4>
             <div class="user-container">
-              <div>{{ room.membersOnline }}</div>
+              <div>{{ onlineMembers }}</div>
               <CustomIcon :size="30">
                 <User />
               </CustomIcon>
             </div>
           </div>
           <div class="host-container">
-            <p>{{ room.hostDisplayName }}</p>
+            <p>{{ hostDisplayName }}</p>
             <CustomIcon :size="15">
               <Crown />
             </CustomIcon>

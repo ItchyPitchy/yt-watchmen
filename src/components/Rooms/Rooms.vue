@@ -1,6 +1,6 @@
 <script lang="ts">
 import { defineComponent, inject } from "vue"
-import { addDoc, collection, doc, getDoc, getFirestore, onSnapshot, setDoc, type Unsubscribe } from "firebase/firestore"
+import { addDoc, collection, doc, endBefore, getDoc, getDocs, getFirestore, limit, limitToLast, onSnapshot, orderBy, query, QueryConstraint, QueryDocumentSnapshot, startAfter, Timestamp, where, type DocumentData, type Unsubscribe } from "firebase/firestore"
 import type { Store } from "@/main"
 import RoomList from "../Rooms/RoomList.vue"
 import ContentSlideEffect from "../common/ContentSlideEffect.vue"
@@ -8,12 +8,11 @@ import ContentSlideEffect from "../common/ContentSlideEffect.vue"
 export interface Room {
   host: string,
   name: string,
-  videoId?: string,
+  videoId: string | null,
   state: "playing" | "paused",
   time: number,
   rate: number,
-  members: { [userId: string]: { isOnline: boolean } },
-  messages: Message[],
+  createdAt: number,
 }
 
 export interface Message {
@@ -24,22 +23,27 @@ export interface Message {
 
 export type RoomExtended = Room & {
   id: string,
-  hostDisplayName: string,
-  membersOnline: number,
 }
+
+interface UserBasedQueryConstraints extends Map<'onPage' | 'onSearch' | 'onType', QueryConstraint[]> {}
 
 interface State {
   unsubscribeOnRoomsValue: Unsubscribe | null,
-  roomMembersUnsubscribes: { [key: string]: Unsubscribe },
+  unsubscribeOnMemberByRoom: { [roomId: string]: Unsubscribe },
   roomName: string,
   type: "private" | "public",
   rooms: RoomExtended[],
+  membersByRoom: { [roomId: string]: number },
+  hostByRoom: { [roomId: string]: string },
   hover: boolean,
-  lastVisible: string | null,
+  firstVisible: QueryDocumentSnapshot<DocumentData> | null,
+  lastVisible: QueryDocumentSnapshot<DocumentData> | null,
+  userBasedQueryConstraints: UserBasedQueryConstraints,
   search: string,
 }
 
 const db = getFirestore()
+const pageSize = 2
 
 export default defineComponent({
   setup() {
@@ -50,36 +54,63 @@ export default defineComponent({
   data(): State {
     return {
       unsubscribeOnRoomsValue: null,
-      roomMembersUnsubscribes: {},
+      unsubscribeOnMemberByRoom: {},
       roomName: "",
       type: "private",
       rooms: [],
+      membersByRoom: {},
+      hostByRoom: {},
       hover: false,
+      firstVisible: null,
       lastVisible: null,
+      userBasedQueryConstraints: new Map(),
       search: '',
     }
   },
   watch: {
-    // "search": {
-    //   handler(toInput: string) {
-    //     const userBasedQueriesConstraints = [
-    //     // ...(
-    //     //     go === 'next' ? [startAfter(this.lastVisible)]
-    //     //   : go === 'previous' ? [endAt(this.lastVisible)]
-    //     //   : []
-    //     // ),
-    //     ...(
-    //         this.search.trim() ? [
-    //           orderByChild('name'),
-    //           startAt(toInput.trim()),
-    //           endAt(toInput.trim()+"\uf8ff")]
-    //       : [orderByChild('name')]
-    //     )
-    //    ]
+    "rooms": {
+      handler(toRooms: RoomExtended[], fromRooms: RoomExtended[]) {
+        // Remove listeners on rooms that's not going to be displayed
+        const noLongerDisplayedRooms = fromRooms.filter((fromRoom) => !toRooms.some((toRoom) => toRoom.id === fromRoom.id))
+        noLongerDisplayedRooms.forEach((room) => this.unsubscribeOnMemberByRoom[room.id]?.())
 
-    //     this.fetchRooms(userBasedQueriesConstraints)
-    //   }
-    // }
+        // Add listeners on rooms that aren't displayed
+        const newRooms = toRooms.filter((toRoom) => !fromRooms.some((fromRoom) => fromRoom.id === toRoom.id))
+
+        newRooms.forEach((room) => {
+          // This would never happen I think but we unsubscribe just in case
+          this.unsubscribeOnMemberByRoom[room.id]?.()
+
+          const roomMembersRef = collection(db, 'rooms', `${room.id}`, 'members')
+
+          this.unsubscribeOnMemberByRoom[room.id] = onSnapshot(roomMembersRef, async (membersSnapshot) => {
+            const onlineMembers = membersSnapshot.docs.length
+            this.membersByRoom[room.id] = onlineMembers
+          })
+        })
+
+        toRooms.forEach(async (room) => {
+          // We don't need to fetch user information again if we already have it
+          if (!this.hostByRoom[room.id]) {
+            const hostUserRef = doc(db, 'users', `${room.host}`)
+            const hostUserSnapshot = await getDoc(hostUserRef)
+  
+            if (hostUserSnapshot.exists()) {
+              this.hostByRoom[room.id] = hostUserSnapshot.data().displayName
+            } else {
+              this.hostByRoom[room.id] = 'host not found'
+            }
+          }
+        })
+      }
+    },
+    "search": {
+      handler(toInput: string) {
+        this.userBasedQueryConstraints.set('onSearch', [where('name', '>=', toInput), where('name', '<=', toInput + '\uf8ff')])
+
+        this.fetchRooms()
+      }
+    },
   },
   created() {
     this.fetchRooms()
@@ -101,78 +132,66 @@ export default defineComponent({
         host: this.store.auth.userId,
         name: this.roomName,
         type: this.type,
+        videoId: null,
         rate: 1,
         time: 0,
         state: "paused",
-        members: {
-          [this.store.auth.userId!]: {
-            isOnline: false,
-          },
-        },
-        messages: [],
+        createdAt: Timestamp.now().valueOf(),
       })
 
       return newRoomRef.id
     },
-    // changePage(go?: 'previous' | 'next') {
-    //    const userBasedQueriesConstraints = [
-    //     ...(
-    //         go === 'next' ? [startAfter(this.lastVisible)]
-    //       : go === 'previous' ? [endAt(this.lastVisible)]
-    //       : []
-    //     ),
-    //     ...(
-    //         this.search.trim() ? [
-    //           orderByChild('name'),
-    //           startAt(this.search.trim()),
-    //           endAt(this.search.trim()+"\uf8ff")
-    //         ] : [
-    //           orderByChild('name')
-    //         ]
-    //     )
-    //    ]
+    changePage(go: 'previous' | 'next') {
+      if (this.lastVisible) {
+        if (go === 'previous') {
+          this.userBasedQueryConstraints.set('onPage', [endBefore(this.firstVisible), limitToLast(pageSize)])
+        }
+  
+        if (go === 'next') {
+          this.userBasedQueryConstraints.set('onPage', [
+            startAfter(this.lastVisible), limit(pageSize)
+          ])
+        }
+      } else {
+        this.userBasedQueryConstraints.delete('onPage')
+      }
 
-    //   this.fetchRooms(userBasedQueriesConstraints)
-    // },
-    fetchRooms() {
+      this.fetchRooms()
+    },
+    switchTab(tab: 'private' | 'public') {
+      this.userBasedQueryConstraints.set('onType', [where('type', '==', `${tab}`)])
+
+      this.fetchRooms()
+    },
+    async fetchRooms() {
+      const roomsRef = query(
+        collection(db, 'rooms'),
+        ...(this.userBasedQueryConstraints.has('onSearch') ? [orderBy('name')] : []),
+        orderBy('createdAt', 'desc'),
+        ...Array.from(this.userBasedQueryConstraints.values()).flatMap((constraints) => constraints),
+        ...(!this.userBasedQueryConstraints.has('onPage') ? [limit(pageSize)] : []),
+      )
+
+      const documentSnapshots = await getDocs(roomsRef)
+      
+      if (documentSnapshots.docs.length === 0) return
+
+      this.firstVisible = documentSnapshots.docs[0]
+      this.lastVisible = documentSnapshots.docs[documentSnapshots.docs.length - 1]
+      
       if (this.unsubscribeOnRoomsValue) this.unsubscribeOnRoomsValue()
-        
-      const roomsRef = collection(db, 'rooms')
 
       this.unsubscribeOnRoomsValue = onSnapshot(roomsRef, async (roomsSnapshot) => {
-        const tempRooms: Omit<RoomExtended, 'hostDisplayName'>[] = roomsSnapshot.docs
-          .filter((roomSnapshot) => roomSnapshot.exists())
-          .map((roomSnapshot) => {
-            const roomData = roomSnapshot.data() as Room
+        const rooms = roomsSnapshot.docs.filter((roomSnapshot) => roomSnapshot.exists())
+        
+        this.rooms = rooms.map((roomSnapshot) => {
+          const roomData = roomSnapshot.data() as Room
 
-            return({
-              id: roomSnapshot.id,
-              membersOnline: Object.values(roomData.members).reduce((membersOnline, member) => member.isOnline === true ? membersOnline + 1 : membersOnline, 0),
-              ...roomData,
-            })
+          return({
+            id: roomSnapshot.id,
+            ...roomData,
           })
-
-        const rooms: RoomExtended[] = []
-       
-       // TODO: find a better way of displaying host username
-        for (const room of tempRooms) {
-          const hostUserRef = doc(db, 'users', `${room.host}`)
-          const hostUserSnapshot = await getDoc(hostUserRef)
-
-          if (hostUserSnapshot.exists()) {
-            rooms.push({
-              ...room,
-              hostDisplayName: hostUserSnapshot.data().displayName,
-            })
-          } else {
-            rooms.push({
-              ...room,
-              hostDisplayName:'host not found',
-            })
-          }
-        }
-
-        this.rooms = rooms
+        })
       })
     }
   },
@@ -182,8 +201,10 @@ export default defineComponent({
 
 <template>
   <div class="page-wrapper">
-    <!-- <p @click="changePage('previous')">Previous</p>
-    <p @click="changePage('next')">Next</p> -->
+    <p @click="changePage('previous')">Previous</p>
+    <p @click="changePage('next')">Next</p>
+    <p @click="switchTab('public')">public</p>
+    <p @click="switchTab('private')">private</p>
     <input v-model="search" />
     <div class="container">
       <div>
@@ -215,7 +236,7 @@ export default defineComponent({
         </div>
       </div>
       <div class="room-list-wrapper">
-        <RoomList v-if="rooms.length" :rooms="rooms" />
+        <RoomList v-if="rooms.length" :rooms="rooms" :membersByRoom="membersByRoom" :hostByRoom="hostByRoom" />
         <p v-else>No rooms found</p>
       </div>
     </div>

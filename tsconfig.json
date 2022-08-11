@@ -8,7 +8,7 @@
     },
     "strict": true,
     "noImplicitAny": true,
-    "lib": ["ES2017"]
+    "lib": ["es2019"]
   },
 
   "references": [

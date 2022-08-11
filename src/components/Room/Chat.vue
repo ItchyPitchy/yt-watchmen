@@ -1,7 +1,7 @@
 <script lang="ts">
 import { defineComponent, inject } from "vue"
 import type { Store } from "@/main"
-import { addDoc, collection, getFirestore, onSnapshot, Timestamp, type Unsubscribe } from "firebase/firestore"
+import { addDoc, collection, getFirestore, onSnapshot, orderBy, query, Timestamp, type Unsubscribe } from "firebase/firestore"
 import ColorSlideEffect from "../common/ColorSlideEffect.vue"
 import type { Message } from "../Rooms/Rooms.vue"
 
@@ -67,13 +67,12 @@ export default defineComponent({
     },
   },
   created() {
-    const roomMessagesRef = collection(db, 'rooms', `${this.roomId}`, 'messages')
+    const roomMessagesRef = query(collection(db, 'rooms', `${this.roomId}`, 'messages'), orderBy('createdAt', 'desc'))
 
     this.unsubscribeOnMessageValue = onSnapshot(roomMessagesRef, (snapshot) => {
       this.messages = snapshot.docs
         .filter(messageSnapshot => messageSnapshot.exists())
         .map((messageSnapshot) => messageSnapshot.data() as Message)
-        .reverse()
     })
   },
   methods: {
@@ -84,22 +83,16 @@ export default defineComponent({
         senderId: this.store.auth.userId,
         senderName: this.store.auth.userName,
         text: this.messageInput,
-        createdAt: Timestamp.now(),
+        createdAt: Timestamp.now().valueOf(),
       })
 
       await addDoc(roomMessagesRef, {
         senderId: this.store.auth.userId,
         senderName: this.store.auth.userName,
         text: this.messageInput,
-        createdAt: Timestamp.now(),
+        createdAt: Timestamp.now().valueOf(),
       })
 
-      // await push(roomMessagesRef, {
-      //   senderId: this.store.auth.userId,
-      //   senderName: this.store.auth.userName,
-      //   text: this.messageInput,
-      //   createdAt: serverTimestamp(),
-      // });
       this.messageInput = "";
     },
   },

@@ -1,17 +1,7 @@
 <script lang="ts">
   import { defineComponent, inject, type PropType } from "vue";
   import type { Store } from "@/main";
-
-  interface Room {
-    id: string,
-    host: string,
-    name: string,
-    videoId?: string,
-    state: "playing" | "paused",
-    time: number,
-    rate: number,
-    members?: { [key: string]: boolean },
-  }
+  import type { Room } from "../Rooms/Rooms.vue";
 
   interface Player {
     loadVideoById: (videoId: string, startSeconds?: number) => void,
@@ -58,8 +48,8 @@
     emits: ['player-ready', 'player-state-change', 'player-playback-rate-change'],
     watch: {
       'room': {
-        handler(newRoomValue: Required<Room>, oldRoomValue: Room | null) {
-          if (newRoomValue.videoId !== oldRoomValue?.videoId) this.player?.loadVideoById(newRoomValue.videoId, newRoomValue.time)
+        handler(newRoomValue: Room, oldRoomValue: Room | null) {
+          if (newRoomValue.videoId !== oldRoomValue?.videoId && newRoomValue.videoId !== null) this.player?.loadVideoById(newRoomValue.videoId, newRoomValue.time)
 
           // TODO: this is not working properly (dunno why)
 

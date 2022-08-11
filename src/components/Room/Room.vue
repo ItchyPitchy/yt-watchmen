@@ -1,23 +1,13 @@
 <script lang="ts">
 import { defineComponent, inject } from "vue"
-import { addDoc, collection, doc, getFirestore, onSnapshot, setDoc, updateDoc, type Unsubscribe } from "firebase/firestore"
+import { addDoc, collection, deleteDoc, doc, getDocs, getFirestore, onSnapshot, query, updateDoc, where, type Unsubscribe } from "firebase/firestore"
 import type { Store } from "@/main"
 import ColorSlideEffect from "../common/ColorSlideEffect.vue"
 import Video from "./Video.vue"
 import Chat from "./Chat.vue"
+import type { Room } from "../Rooms/Rooms.vue"
 
 const db = getFirestore()
-
-interface Room {
-  id: string,
-  host: string,
-  name: string,
-  videoId?: string,
-  state: "playing" | "paused",
-  time: number,
-  rate: number,
-  members?: { [key: string]: boolean },
-}
 
 interface State {
   videoUrlInput: string,
@@ -76,17 +66,19 @@ export default defineComponent({
   },
   methods: {
     async addUserToRoom(roomId: string) {
-      const roomMembersMeRef = doc(db, 'rooms', `${roomId}`, 'members', `${this.store.auth.userId!}`)
+      const roomMembersMeRef = collection(db, 'rooms', `${roomId}`, 'members')
 
-      await setDoc(roomMembersMeRef, {
-        isOnline: true,
+      await addDoc(roomMembersMeRef, {
+        userId: this.store.auth.userId!,
       })
     },
     async removeUserFromRoom(roomId: string) {
-      const roomMembersMeRef = doc(db, 'rooms', `${roomId}`, 'members', `${this.store.auth.userId!}`)
+      const roomMembersMeRef = collection(db, 'rooms', `${roomId}`, 'members')
+      const q = query(roomMembersMeRef, where('userId', '==', this.store.auth.userId))
+      const querySnapshot = await getDocs(q)
 
-      await setDoc(roomMembersMeRef, {
-        isOnline: false,
+      querySnapshot.forEach(async (doc) => {
+        await deleteDoc(doc.ref)
       })
     },
     async onPlayerReady() {
@@ -104,19 +96,11 @@ export default defineComponent({
       const roomRef = doc(db, 'rooms', `${this.roomId}`)
 
       await updateDoc(roomRef, payload)
-
-      // const roomRef = ref(db, "rooms" + `/${this.roomId}`)
-
-      // update(roomRef, payload)
     },
     async onPlayerPlaybackRateChange(payload: { rate: number }) {
       const roomRef = doc(db, 'rooms', `${this.roomId}`)
 
       await updateDoc(roomRef, payload)
-
-      // const roomRef = ref(db, "rooms" + `/${this.roomId}`)
-
-      // update(roomRef, payload)
     },
     async loadVideo() {
       const url = new URL(this.videoUrlInput)
@@ -130,10 +114,6 @@ export default defineComponent({
         await updateDoc(roomRef, {
           videoId: videoId,
         })
-        
-        // const roomVideoIdRef = ref(db, `rooms/${this.roomId}/videoId`)
-
-        // await set(roomVideoIdRef, videoId)
       }
     },
   },
@@ -166,7 +146,6 @@ export default defineComponent({
       </form>
       <Chat :roomId="roomId" />
     </div>
-    <!-- </div> -->
   </div>
 </template>
 

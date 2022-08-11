@@ -6,7 +6,7 @@ import type { RoomExtended } from "./Rooms.vue";
 
 interface State {
   itemRefs: Element[],
-  roomsExtended: Array<RoomExtended & { addedWhileInView: boolean }>
+  roomsExtended: Array<RoomExtended & { addedWhileInView: boolean }>,
 }
 
 export default defineComponent({
@@ -19,6 +19,14 @@ export default defineComponent({
   props: {
     rooms: {
       type: Array as PropType<RoomExtended[]>,
+      required: true,
+    },
+    membersByRoom: {
+      type: Object as PropType<{ [roomId: string]: number }>,
+      required: true,
+    },
+    hostByRoom: {
+      type: Object as PropType<{ [roomId: string]: string }>,
       required: true,
     },
   },
@@ -36,7 +44,7 @@ export default defineComponent({
           addedWhileInView: oldRooms.some((oldRoom) => oldRoom.id !== newRoom.id)
         }))
       }
-    }
+    },
   },
   methods: {
     setItemRef(el: Element | null, index: number) {
@@ -54,7 +62,7 @@ export default defineComponent({
     <ul class="room-list">
       <BeenInView v-for="(room, index) of roomsExtended" :elementRef="itemRefs[index]" :disableStartInView="room.addedWhileInView" :key="room.id">
         <li :ref="(el) => setItemRef(el as Element | null, index)">
-          <RoomItem :room="room" />
+          <RoomItem :room="room" :onlineMembers="membersByRoom[room.id]" :hostDisplayName="hostByRoom[room.id]" />
         </li>
       </BeenInView>
     </ul>
