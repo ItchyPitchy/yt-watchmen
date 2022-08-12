@@ -1,6 +1,7 @@
 <script lang="ts">
 import { defineComponent, inject } from "vue"
 import { addDoc, collection, doc, endBefore, getDoc, getDocs, getFirestore, limit, limitToLast, onSnapshot, orderBy, query, QueryConstraint, QueryDocumentSnapshot, startAfter, Timestamp, where, type DocumentData, type Unsubscribe } from "firebase/firestore"
+import { uuidv4 } from "@firebase/util"
 import type { Store } from "@/main"
 import RoomList from "../Rooms/RoomList.vue"
 import ContentSlideEffect from "../common/ContentSlideEffect.vue"
@@ -30,8 +31,12 @@ interface UserBasedQueryConstraints extends Map<'onPage' | 'onSearch' | 'onType'
 interface State {
   unsubscribeOnRoomsValue: Unsubscribe | null,
   unsubscribeOnMemberByRoom: { [roomId: string]: Unsubscribe },
+  unsubscribeOnPermissionsValue: Unsubscribe | null,
+  roomPermissionsRoomIds: string[],
   roomName: string,
   type: "private" | "public",
+  tab: "private" | "public",
+  isSwitchingPage: boolean,
   rooms: RoomExtended[],
   membersByRoom: { [roomId: string]: number },
   hostByRoom: { [roomId: string]: string },
@@ -43,7 +48,7 @@ interface State {
 }
 
 const db = getFirestore()
-const pageSize = 2
+const pageSize = 4
 
 export default defineComponent({
   setup() {
@@ -55,15 +60,21 @@ export default defineComponent({
     return {
       unsubscribeOnRoomsValue: null,
       unsubscribeOnMemberByRoom: {},
-      roomName: "",
-      type: "private",
+      unsubscribeOnPermissionsValue: null,
+      roomPermissionsRoomIds: [],
+      roomName: '',
+      type: 'private',
+      tab: 'public',
+      isSwitchingPage: false,
       rooms: [],
       membersByRoom: {},
       hostByRoom: {},
       hover: false,
       firstVisible: null,
       lastVisible: null,
-      userBasedQueryConstraints: new Map(),
+      userBasedQueryConstraints: new Map([
+        ['onType', [where('type', '==', 'public')]]
+      ]),
       search: '',
     }
   },
@@ -106,18 +117,65 @@ export default defineComponent({
     },
     "search": {
       handler(toInput: string) {
-        this.userBasedQueryConstraints.set('onSearch', [where('name', '>=', toInput), where('name', '<=', toInput + '\uf8ff')])
+        if (toInput.length > 0) {
+          this.userBasedQueryConstraints.set('onSearch', [where('name', '>=', toInput), where('name', '<=', toInput + '\uf8ff')])
+          this.userBasedQueryConstraints.delete('onPage')
+          this.firstVisible = null
+          this.lastVisible = null
+        } else {
+          this.userBasedQueryConstraints.delete('onSearch')
+          this.userBasedQueryConstraints.delete('onPage')
+          this.firstVisible = null
+          this.lastVisible = null
+        }
 
         this.fetchRooms()
       }
     },
+    "tab": {
+      handler(toTab: 'public' | 'private') {
+         if (toTab === 'private') {
+          this.userBasedQueryConstraints.set('onType', [where('type', '==', `${toTab}`), where('permissionId', 'in', this.roomPermissionsRoomIds.length ? this.roomPermissionsRoomIds : [''])])
+        }
+
+        if (toTab === 'public') {
+          this.userBasedQueryConstraints.set('onType', [where('type', '==', `${toTab}`)])
+        }
+
+        this.userBasedQueryConstraints.delete('onPage')
+
+        this.fetchRooms()
+      }
+    },
+    "roomPermissionsRoomIds": {
+      handler() {
+        if (this.tab === 'private') {
+          this.userBasedQueryConstraints.set('onType', [where('type', '==', `${this.tab}`), ...(this.roomPermissionsRoomIds.length > 0 ? [where('key', 'in', this.roomPermissionsRoomIds)] : [])])
+        }
+
+        this.fetchRooms()
+      }
+    }
   },
-  created() {
+  async created() {
     this.fetchRooms()
+
+    const permissionsRef = collection(db, 'permissions')
+    const yourRoomPermissionsRef = query(permissionsRef, where('userId', '==', this.store.auth.userId))
+
+    this.unsubscribeOnPermissionsValue = onSnapshot(yourRoomPermissionsRef, (yourRoomPermissionsSnapshot) => {
+      this.roomPermissionsRoomIds = yourRoomPermissionsSnapshot.docs.map((yourRoomPermissions) => yourRoomPermissions.data().roomPermissionId)
+    })
+
   },
   unmounted() {
-    if (this.unsubscribeOnRoomsValue)
+    if (this.unsubscribeOnRoomsValue) {
       this.unsubscribeOnRoomsValue()
+    }
+
+    if (this.unsubscribeOnPermissionsValue) {
+      this.unsubscribeOnPermissionsValue()
+    }
   },
   methods: {
     async onCreateRoom() {
@@ -137,6 +195,7 @@ export default defineComponent({
         time: 0,
         state: "paused",
         createdAt: Timestamp.now().valueOf(),
+        permissionId: uuidv4(),
       })
 
       return newRoomRef.id
@@ -156,17 +215,13 @@ export default defineComponent({
         this.userBasedQueryConstraints.delete('onPage')
       }
 
-      this.fetchRooms()
-    },
-    switchTab(tab: 'private' | 'public') {
-      this.userBasedQueryConstraints.set('onType', [where('type', '==', `${tab}`)])
-
+      this.isSwitchingPage = true
       this.fetchRooms()
     },
     async fetchRooms() {
       const roomsRef = query(
         collection(db, 'rooms'),
-        ...(this.userBasedQueryConstraints.has('onSearch') ? [orderBy('name')] : []),
+        ...(this.userBasedQueryConstraints.has('onSearch') ? [orderBy('name', 'asc')] : []),
         orderBy('createdAt', 'desc'),
         ...Array.from(this.userBasedQueryConstraints.values()).flatMap((constraints) => constraints),
         ...(!this.userBasedQueryConstraints.has('onPage') ? [limit(pageSize)] : []),
@@ -174,10 +229,11 @@ export default defineComponent({
 
       const documentSnapshots = await getDocs(roomsRef)
       
-      if (documentSnapshots.docs.length === 0) return
+      if (documentSnapshots.docs.length === 0 && this.isSwitchingPage) return
 
-      this.firstVisible = documentSnapshots.docs[0]
-      this.lastVisible = documentSnapshots.docs[documentSnapshots.docs.length - 1]
+      this.isSwitchingPage = false
+      this.firstVisible = documentSnapshots.docs[0] || null
+      this.lastVisible = documentSnapshots.docs[documentSnapshots.docs.length - 1] || null
       
       if (this.unsubscribeOnRoomsValue) this.unsubscribeOnRoomsValue()
 
@@ -203,8 +259,8 @@ export default defineComponent({
   <div class="page-wrapper">
     <p @click="changePage('previous')">Previous</p>
     <p @click="changePage('next')">Next</p>
-    <p @click="switchTab('public')">public</p>
-    <p @click="switchTab('private')">private</p>
+    <p @click="tab = 'public'">public</p>
+    <p @click="tab = 'private'">private</p>
     <input v-model="search" />
     <div class="container">
       <div>
