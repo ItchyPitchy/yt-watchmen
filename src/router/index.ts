@@ -47,6 +47,8 @@ router.beforeEach(async (to, from, next) => {
 
   if (requiresAuth && !await getCurrentUser()) {
     next('/')
+  } else if (to.path === '/' && await getCurrentUser()) {
+    next('/rooms')
   } else {
     next()
   }

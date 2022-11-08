@@ -155,7 +155,7 @@ export default defineComponent({
 .page-wrapper {
   flex: 1;
   display: flex;
-  max-height: 100vh;
+  max-height: calc(100vh - 75px);
   overflow: hidden;
 }
 
@@ -169,7 +169,7 @@ export default defineComponent({
 
 .player-container {
   flex: 1;
-  max-width: calc(177.77vmin);
+  max-width: calc(166.22vmin);
 }
 
 .player-ratio-box {

@@ -1,10 +1,11 @@
 <script lang="ts">
 import { defineComponent, inject } from "vue"
-import { addDoc, collection, doc, endBefore, getDoc, getDocs, getFirestore, limit, limitToLast, onSnapshot, orderBy, query, QueryConstraint, QueryDocumentSnapshot, startAfter, Timestamp, where, type DocumentData, type Unsubscribe } from "firebase/firestore"
-import { uuidv4 } from "@firebase/util"
+import { collection, doc, endBefore, getDoc, getDocs, getFirestore, limit, limitToLast, onSnapshot, orderBy, query, QueryConstraint, QueryDocumentSnapshot, startAfter, where, type DocumentData, type Unsubscribe } from "firebase/firestore"
 import type { Store } from "@/main"
 import RoomList from "../Rooms/RoomList.vue"
 import ContentSlideEffect from "../common/ContentSlideEffect.vue"
+import CreateRoom from "./CreateRoom.vue"
+import ColorSlideEffectVue from "../common/ColorSlideEffect.vue"
 
 export interface Room {
   host: string,
@@ -26,29 +27,30 @@ export type RoomExtended = Room & {
   id: string,
 }
 
-interface UserBasedQueryConstraints extends Map<'onPage' | 'onSearch' | 'onType', QueryConstraint[]> {}
+interface UserBasedQueryConstraints extends Map<'onPage' | 'onSearch' | 'onType', QueryConstraint[]> { }
 
 interface State {
   unsubscribeOnRoomsValue: Unsubscribe | null,
   unsubscribeOnMemberByRoom: { [roomId: string]: Unsubscribe },
   unsubscribeOnPermissionsValue: Unsubscribe | null,
   roomPermissionsRoomIds: string[],
-  roomName: string,
-  type: "private" | "public",
   tab: "private" | "public",
   isSwitchingPage: boolean,
   rooms: RoomExtended[],
   membersByRoom: { [roomId: string]: number },
   hostByRoom: { [roomId: string]: string },
-  hover: boolean,
   firstVisible: QueryDocumentSnapshot<DocumentData> | null,
   lastVisible: QueryDocumentSnapshot<DocumentData> | null,
   userBasedQueryConstraints: UserBasedQueryConstraints,
   search: string,
+  previousButtonHover: boolean,
+  nextButtonHover: boolean,
+  publicButtonHover: boolean,
+  privateButtonHover: boolean,
 }
 
 const db = getFirestore()
-const pageSize = 4
+const pageSize = 7
 
 export default defineComponent({
   setup() {
@@ -62,20 +64,21 @@ export default defineComponent({
       unsubscribeOnMemberByRoom: {},
       unsubscribeOnPermissionsValue: null,
       roomPermissionsRoomIds: [],
-      roomName: '',
-      type: 'private',
       tab: 'public',
       isSwitchingPage: false,
       rooms: [],
       membersByRoom: {},
       hostByRoom: {},
-      hover: false,
       firstVisible: null,
       lastVisible: null,
       userBasedQueryConstraints: new Map([
         ['onType', [where('type', '==', 'public')]]
       ]),
       search: '',
+      previousButtonHover: false,
+      nextButtonHover: false,
+      publicButtonHover: false,
+      privateButtonHover: false,
     }
   },
   watch: {
@@ -105,7 +108,7 @@ export default defineComponent({
           if (!this.hostByRoom[room.id]) {
             const hostUserRef = doc(db, 'users', `${room.host}`)
             const hostUserSnapshot = await getDoc(hostUserRef)
-  
+
             if (hostUserSnapshot.exists()) {
               this.hostByRoom[room.id] = hostUserSnapshot.data().displayName
             } else {
@@ -134,7 +137,7 @@ export default defineComponent({
     },
     "tab": {
       handler(toTab: 'public' | 'private') {
-         if (toTab === 'private') {
+        if (toTab === 'private') {
           this.userBasedQueryConstraints.set('onType', [where('type', '==', `${toTab}`), where('permissionId', 'in', this.roomPermissionsRoomIds.length ? this.roomPermissionsRoomIds : [''])])
         }
 
@@ -178,34 +181,12 @@ export default defineComponent({
     }
   },
   methods: {
-    async onCreateRoom() {
-      const roomId = await this.createRoom()
-
-      this.$router.push(`/rooms/${roomId}`)
-    },
-    async createRoom() {
-      const roomsRef = collection(db, 'rooms')
-
-      const newRoomRef = await addDoc(roomsRef, {
-        host: this.store.auth.userId,
-        name: this.roomName,
-        type: this.type,
-        videoId: null,
-        rate: 1,
-        time: 0,
-        state: "paused",
-        createdAt: Timestamp.now().valueOf(),
-        permissionId: uuidv4(),
-      })
-
-      return newRoomRef.id
-    },
     changePage(go: 'previous' | 'next') {
       if (this.lastVisible) {
         if (go === 'previous') {
           this.userBasedQueryConstraints.set('onPage', [endBefore(this.firstVisible), limitToLast(pageSize)])
         }
-  
+
         if (go === 'next') {
           this.userBasedQueryConstraints.set('onPage', [
             startAfter(this.lastVisible), limit(pageSize)
@@ -223,27 +204,27 @@ export default defineComponent({
         collection(db, 'rooms'),
         ...(this.userBasedQueryConstraints.has('onSearch') ? [orderBy('name', 'asc')] : []),
         orderBy('createdAt', 'desc'),
-        ...Array.from(this.userBasedQueryConstraints.values()).flatMap((constraints) => constraints),
+        ...Array.from(this.userBasedQueryConstraints.values()).flat(),
         ...(!this.userBasedQueryConstraints.has('onPage') ? [limit(pageSize)] : []),
       )
 
       const documentSnapshots = await getDocs(roomsRef)
-      
+
       if (documentSnapshots.docs.length === 0 && this.isSwitchingPage) return
 
       this.isSwitchingPage = false
       this.firstVisible = documentSnapshots.docs[0] || null
       this.lastVisible = documentSnapshots.docs[documentSnapshots.docs.length - 1] || null
-      
+
       if (this.unsubscribeOnRoomsValue) this.unsubscribeOnRoomsValue()
 
       this.unsubscribeOnRoomsValue = onSnapshot(roomsRef, async (roomsSnapshot) => {
         const rooms = roomsSnapshot.docs.filter((roomSnapshot) => roomSnapshot.exists())
-        
+
         this.rooms = rooms.map((roomSnapshot) => {
           const roomData = roomSnapshot.data() as Room
 
-          return({
+          return ({
             id: roomSnapshot.id,
             ...roomData,
           })
@@ -251,49 +232,86 @@ export default defineComponent({
       })
     }
   },
-  components: { RoomList, ContentSlideEffect }
+  components: { RoomList, ContentSlideEffect, CreateRoom, ColorSlideEffectVue }
 })
 </script>
 
 <template>
   <div class="page-wrapper">
-    <p @click="changePage('previous')">Previous</p>
-    <p @click="changePage('next')">Next</p>
-    <p @click="tab = 'public'">public</p>
-    <p @click="tab = 'private'">private</p>
-    <input v-model="search" />
-    <div class="container">
-      <div>
-        <div class="create-room-wrapper">
-          <ContentSlideEffect :active="hover">
-            <template v-slot:main-content>
-              <form @submit.prevent>
-                <div class="input-container">
-                  <label>Room name</label>
-                  <input type="text" v-model="roomName" required />
-                </div>
-                <div class="input-container">
-                  <input type="radio" id="private" value="private" v-model="type">
-                  <label for="private">Private</label>
-                  <input type="radio" id="public" value="public" v-model="type">
-                  <label for="public">Public</label>
-                </div>
-              </form>
-            </template>
-            <template v-slot:slide-content>
-              <div class="confirm-create-wrapper">
-                <p>Are you sure you want to create <span class="type">{{ type }}</span> room named "<span class="room-name">{{
-                    roomName
-                }}</span>"?</p>
-              </div>
-            </template>
-          </ContentSlideEffect>
-          <button @click="onCreateRoom" @mouseover="hover = true" @mouseleave="hover = false">Create room</button>
+    <CreateRoom />
+    <div class="rooms-wrapper">
+      <div class="container">
+        <div class="room-list-wrapper">
+          <div class="input-container" :style="{ marginBottom: '40px' }">
+            <ColorSlideEffectVue :active="previousButtonHover" :inactive-bg-color="'#6200ff'"
+              :inactive-text-color="'white'" :active-bg-color="'#310080'" :active-text-color="'white'">
+              <template v-slot:element>
+                <button @click="() => changePage('previous')" @mouseover="previousButtonHover = true"
+                  @mouseleave="previousButtonHover = false">Previous</button>
+              </template>
+              <p @click="() => changePage('previous')">Previous</p>
+            </ColorSlideEffectVue>
+            <ColorSlideEffectVue :active="nextButtonHover" :inactive-bg-color="'#6200ff'" :inactive-text-color="'white'"
+              :active-bg-color="'#310080'" :active-text-color="'white'">
+              <template v-slot:element>
+                <button @click="() => changePage('next')" @mouseover="nextButtonHover = true"
+                  @mouseleave="nextButtonHover = false">Next</button>
+              </template>
+            </ColorSlideEffectVue>
+            <ColorSlideEffectVue :active="publicButtonHover" :inactive-bg-color="'#6200ff'"
+              :inactive-text-color="'white'" :active-bg-color="'#310080'" :active-text-color="'white'">
+              <template v-slot:element>
+                <button @click="tab = 'public'" @mouseover="publicButtonHover = true"
+                  @mouseleave="publicButtonHover = false">Public</button>
+              </template>
+            </ColorSlideEffectVue>
+            <ColorSlideEffectVue :active="privateButtonHover" :inactive-bg-color="'#6200ff'"
+              :inactive-text-color="'white'" :active-bg-color="'#310080'" :active-text-color="'white'">
+              <template v-slot:element>
+                <button @click="tab = 'private'" @mouseover="privateButtonHover = true"
+                  @mouseleave="privateButtonHover = false">Private</button>
+              </template>
+            </ColorSlideEffectVue>
+            <input v-model="search" placeholder="Search" />
+          </div>
+          <div :style="{ flexGrow: 1 }">
+            <RoomList v-if="rooms.length" :rooms="rooms" :membersByRoom="membersByRoom" :hostByRoom="hostByRoom"
+              @change-page="changePage" @switch-tab="switchTab" />
+            <p v-else>No rooms found</p>
+          </div>
+          <div class="input-container" :style="{ marginTop: '40px' }">
+            <ColorSlideEffectVue :active="previousButtonHover" :inactive-bg-color="'#6200ff'"
+              :inactive-text-color="'white'" :active-bg-color="'#310080'" :active-text-color="'white'">
+              <template v-slot:element>
+                <button @click="() => changePage('previous')" @mouseover="previousButtonHover = true"
+                  @mouseleave="previousButtonHover = false">Previous</button>
+              </template>
+              <p @click="() => changePage('previous')">Previous</p>
+            </ColorSlideEffectVue>
+            <ColorSlideEffectVue :active="nextButtonHover" :inactive-bg-color="'#6200ff'" :inactive-text-color="'white'"
+              :active-bg-color="'#310080'" :active-text-color="'white'">
+              <template v-slot:element>
+                <button @click="() => changePage('next')" @mouseover="nextButtonHover = true"
+                  @mouseleave="nextButtonHover = false">Next</button>
+              </template>
+            </ColorSlideEffectVue>
+            <ColorSlideEffectVue :active="publicButtonHover" :inactive-bg-color="'#6200ff'"
+              :inactive-text-color="'white'" :active-bg-color="'#310080'" :active-text-color="'white'">
+              <template v-slot:element>
+                <button @click="tab = 'public'" @mouseover="publicButtonHover = true"
+                  @mouseleave="publicButtonHover = false">Public</button>
+              </template>
+            </ColorSlideEffectVue>
+            <ColorSlideEffectVue :active="privateButtonHover" :inactive-bg-color="'#6200ff'"
+              :inactive-text-color="'white'" :active-bg-color="'#310080'" :active-text-color="'white'">
+              <template v-slot:element>
+                <button @click="tab = 'private'" @mouseover="privateButtonHover = true"
+                  @mouseleave="privateButtonHover = false">Private</button>
+              </template>
+            </ColorSlideEffectVue>
+            <input v-model="search" placeholder="Search" />
+          </div>
         </div>
-      </div>
-      <div class="room-list-wrapper">
-        <RoomList v-if="rooms.length" :rooms="rooms" :membersByRoom="membersByRoom" :hostByRoom="hostByRoom" />
-        <p v-else>No rooms found</p>
       </div>
     </div>
   </div>
@@ -303,6 +321,10 @@ export default defineComponent({
 @import "@/assets/variables.scss";
 
 .page-wrapper {
+  display: flex;
+}
+
+.rooms-wrapper {
   flex: 1;
   padding: 100px;
 }
@@ -310,84 +332,56 @@ export default defineComponent({
 .container {
   margin: 0 auto;
   max-width: 1000px;
+  height: 100%;
   display: flex;
   flex-direction: column;
   gap: 5%;
 
   @media (min-width: 1000px) {
     flex-direction: row;
-
-    .create-room-wrapper {
-      position: sticky;
-      top: 50px;
-    }
   }
 
-  &>div {
+  .room-list-wrapper {
     flex: 1;
+    display: flex;
+    flex-direction: column;
   }
-
-  .create-room-wrapper {
-    background-color: $color-primary;
-    margin-bottom: 50px;
-  }
-
-  .confirm-create-wrapper {
-    width: 100%;
-    height: 100%;
-    background-color: $color-primary;
-    color: white;
-    padding: 20px;
-
-    p {
-      font-size: 24px;
-      font-weight: 400;
-    }
-
-    .type {
-      font-weight: 700;
-    }
-
-    .room-name {
-      font-weight: 700;
-    }
-  }
-
-  button {
-    text-align: center !important;
-    width: 100%;
-    text-align: right;
-    font-size: 28px;
-    font-family: 'Poppins';
-    font-weight: 700;
-    background-color: $color-primary;
-    color: white;
-    padding: 0px;
-
-    &:hover {
-      background-color: white;
-      color: $color-primary;
-      cursor: pointer;
-    }
-  }
-}
-
-input[type=text] {
-  flex: 1;
 }
 
 .input-container {
   display: flex;
-  align-items: center;
-  gap: 20px;
-  margin-bottom: 1px;
-  background-color: white;
-  padding: 20px;
+  height: 40px;
+  border-left: 1px solid white;
+  border-right: 1px solid white;
 
-  label {
-    font-size: 18px;
-    font-weight: 500;
-    white-space: nowrap;
+  &>* {
+    flex: 1;
+  }
+}
+
+button {
+  display: block;
+  height: 100%;
+  width: 100%;
+  font-size: 16px;
+  font-family: 'Poppins';
+  font-weight: 600;
+  padding: 5px 10px;
+  border: 1px solid white;
+  border-top: 2px solid white;
+  border-bottom: 2px solid white;
+  background: none;
+  color: inherit;
+}
+
+input {
+  height: 100%;
+  border-radius: 0;
+  border: none;
+  flex: 1;
+
+  &:focus {
+    outline: none;
   }
 }
 </style>

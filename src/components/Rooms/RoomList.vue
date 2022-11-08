@@ -60,7 +60,8 @@ export default defineComponent({
 <template>
   <div class="room-list-wrapper">
     <ul class="room-list">
-      <BeenInView v-for="(room, index) of roomsExtended" :elementRef="itemRefs[index]" :disableStartInView="room.addedWhileInView" :key="room.id">
+      <BeenInView v-for="(room, index) of roomsExtended" :elementRef="itemRefs[index]"
+        :disableStartInView="room.addedWhileInView" :key="room.id">
         <li :ref="(el) => setItemRef(el as Element | null, index)">
           <RoomItem :room="room" :onlineMembers="membersByRoom[room.id]" :hostDisplayName="hostByRoom[room.id]" />
         </li>
@@ -99,5 +100,4 @@ li {
     }
   }
 }
-
 </style>

@@ -19,6 +19,9 @@ enum ActiveTab {
   SIGN_UP,
 }
 
+const auth = getAuth()
+const db = getFirestore()
+
 export default defineComponent({
   setup() {
     return {
@@ -41,42 +44,34 @@ export default defineComponent({
       if (this.activeTab !== ActiveTab.SIGN_UP) return
 
       if (this.passwordSignUp.length !== 0 && this.passwordSignUp === this.passwordRepeatSignUp) {
-        const auth = getAuth()
-        const db = getFirestore()
 
         createUserWithEmailAndPassword(auth, this.emailSignUp, this.passwordSignUp)
           .then(async (userCredential) => {
             const user = userCredential.user
-            console.log("user", user)
-
             const userRef = doc(db, 'users', `${user.uid}`)
+
             await setDoc(userRef, {
               userId: user.uid,
               displayName: this.userNameSignUp,
             })
+
+            this.$router.push(`/rooms`)
           })
           .catch((error) => {
-            console.log(error)
-            const errorCode = error.code
-            const errorMessage = error.message
+            console.error(error)
           })
       }
     },
     signIn() {
       if (this.activeTab !== ActiveTab.SIGN_IN) return
 
-      const auth = getAuth()
-
       signInWithEmailAndPassword(auth, this.emailSignIn, this.passwordSignIn)
-        .then((userCredential) => {
-          const user = userCredential.user
+        .then(() => {
+          this.$router.push(`/rooms`)
         })
         .catch((error) => {
-          console.log(error)
-          const errorCode = error.code
-          const errorMessage = error.message
+          console.error(error)
         })
-      console.log("Sign in!")
     },
     changeTab(to: ActiveTab) {
       this.activeTab = to
