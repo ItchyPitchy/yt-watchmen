@@ -275,8 +275,7 @@ export default defineComponent({
             <input v-model="search" placeholder="Search" />
           </div>
           <div :style="{ flexGrow: 1 }">
-            <RoomList v-if="rooms.length" :rooms="rooms" :membersByRoom="membersByRoom" :hostByRoom="hostByRoom"
-              @change-page="changePage" @switch-tab="switchTab" />
+            <RoomList v-if="rooms.length" :rooms="rooms" :membersByRoom="membersByRoom" :hostByRoom="hostByRoom" />
             <p v-else>No rooms found</p>
           </div>
           <div class="input-container" :style="{ marginTop: '40px' }">

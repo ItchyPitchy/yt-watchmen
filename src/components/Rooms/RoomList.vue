@@ -81,8 +81,6 @@ export default defineComponent({
 
 li {
   position: relative;
-  // background-color: #6200ff;
-  // color: white;
   opacity: 0;
   transform: translateX(50px);
   transition: transform .5s ease-out, opacity .5s ease-out;
