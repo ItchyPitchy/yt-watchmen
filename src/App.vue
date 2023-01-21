@@ -53,12 +53,17 @@ nav {
   align-items: center;
   padding: 10px;
   z-index: 55;
-  background-color: $color-primary;
+  // background-color: $color-primary;
+  border-bottom: 1px solid white;
 
   a,
   span {
     color: white !important;
     font-size: 20px;
+
+    &:hover {
+      cursor: pointer;
+    }
   }
 }
 </style>

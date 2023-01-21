@@ -21,14 +21,6 @@ export default defineComponent({
       type: Array as PropType<RoomExtended[]>,
       required: true,
     },
-    membersByRoom: {
-      type: Object as PropType<{ [roomId: string]: number }>,
-      required: true,
-    },
-    hostByRoom: {
-      type: Object as PropType<{ [roomId: string]: string }>,
-      required: true,
-    },
   },
   created() {
     this.roomsExtended = this.rooms.map(room => ({
@@ -63,7 +55,8 @@ export default defineComponent({
       <BeenInView v-for="(room, index) of roomsExtended" :elementRef="itemRefs[index]"
         :disableStartInView="room.addedWhileInView" :key="room.id">
         <li :ref="(el) => setItemRef(el as Element | null, index)">
-          <RoomItem :room="room" :onlineMembers="membersByRoom[room.id]" :hostDisplayName="hostByRoom[room.id]" />
+          <RoomItem :room="room" :onlineMembers="1/*Object.entries(room.members).length*/"
+            :hostDisplayName="room.host /* TODO: Add display name */" />
         </li>
       </BeenInView>
     </ul>

@@ -63,7 +63,7 @@ export default defineComponent({
   components: { ContentSlideEffect, CustomIcon, AngleLeft }
 })
 </script>
-  
+
 <template>
   <div class="create-room-wrapper" :class="{ isOpen }">
     <div>
@@ -91,12 +91,13 @@ export default defineComponent({
             <p v-if="error">{{ error }}</p>
             <p v-else>Are you sure you want to create <span class="type">{{ type }}</span> room named "<span
                 class="room-name">{{
-                    roomName
+                  roomName
                 }}</span>"?</p>
           </div>
         </template>
       </ContentSlideEffect>
-      <button @click="onCreateRoom" @mouseover="hover = true" @mouseleave="hover = false" :class="{ error }">Create
+      <button @click="() => { !error && onCreateRoom() }" @mouseover="hover = true" @mouseleave="hover = false"
+        :class="{ error }">Create
         room</button>
     </div>
     <div class="sidebar-frame">
@@ -108,7 +109,7 @@ export default defineComponent({
     </div>
   </div>
 </template>
-  
+
 <style scoped lang="scss">
 @import "@/assets/variables.scss";
 
@@ -214,4 +215,3 @@ input[type=text] {
   }
 }
 </style>
-  

@@ -1,11 +1,12 @@
 <script lang="ts">
 import { defineComponent, inject } from "vue"
-import { collection, doc, endBefore, getDoc, getDocs, getFirestore, limit, limitToLast, onSnapshot, orderBy, query, QueryConstraint, QueryDocumentSnapshot, startAfter, where, type DocumentData, type Unsubscribe } from "firebase/firestore"
+import { collection, endBefore, getDocs, getFirestore, limit, limitToLast, orderBy, query, QueryConstraint, QueryDocumentSnapshot, startAfter, startAt, where, type DocumentData } from "firebase/firestore"
 import type { Store } from "@/main"
 import RoomList from "../Rooms/RoomList.vue"
 import ContentSlideEffect from "../common/ContentSlideEffect.vue"
 import CreateRoom from "./CreateRoom.vue"
 import ColorSlideEffectVue from "../common/ColorSlideEffect.vue"
+import LoadingCircle from "../common/LoadingCircle.vue";
 
 export interface Room {
   host: string,
@@ -15,6 +16,7 @@ export interface Room {
   time: number,
   rate: number,
   createdAt: number,
+  members: {}, // TODO: Change to correct type!
 }
 
 export interface Message {
@@ -27,30 +29,24 @@ export type RoomExtended = Room & {
   id: string,
 }
 
-interface UserBasedQueryConstraints extends Map<'onPage' | 'onSearch' | 'onType', QueryConstraint[]> { }
-
 interface State {
-  unsubscribeOnRoomsValue: Unsubscribe | null,
-  unsubscribeOnMemberByRoom: { [roomId: string]: Unsubscribe },
-  unsubscribeOnPermissionsValue: Unsubscribe | null,
   roomPermissionsRoomIds: string[],
   tab: "private" | "public",
-  isSwitchingPage: boolean,
   rooms: RoomExtended[],
-  membersByRoom: { [roomId: string]: number },
-  hostByRoom: { [roomId: string]: string },
+  isLoading: boolean,
   firstVisible: QueryDocumentSnapshot<DocumentData> | null,
   lastVisible: QueryDocumentSnapshot<DocumentData> | null,
-  userBasedQueryConstraints: UserBasedQueryConstraints,
   search: string,
   previousButtonHover: boolean,
   nextButtonHover: boolean,
   publicButtonHover: boolean,
   privateButtonHover: boolean,
+  firstPage: boolean,
+  lastPage: boolean,
 }
 
 const db = getFirestore()
-const pageSize = 7
+const pageSize = 5
 
 export default defineComponent({
   setup() {
@@ -60,179 +56,234 @@ export default defineComponent({
   },
   data(): State {
     return {
-      unsubscribeOnRoomsValue: null,
-      unsubscribeOnMemberByRoom: {},
-      unsubscribeOnPermissionsValue: null,
       roomPermissionsRoomIds: [],
       tab: 'public',
-      isSwitchingPage: false,
       rooms: [],
-      membersByRoom: {},
-      hostByRoom: {},
+      isLoading: false,
       firstVisible: null,
       lastVisible: null,
-      userBasedQueryConstraints: new Map([
-        ['onType', [where('type', '==', 'public')]]
-      ]),
       search: '',
       previousButtonHover: false,
       nextButtonHover: false,
       publicButtonHover: false,
       privateButtonHover: false,
+      firstPage: true,
+      lastPage: false,
     }
   },
   watch: {
-    "rooms": {
-      handler(toRooms: RoomExtended[], fromRooms: RoomExtended[]) {
-        // Remove listeners on rooms that's not going to be displayed
-        const noLongerDisplayedRooms = fromRooms.filter((fromRoom) => !toRooms.some((toRoom) => toRoom.id === fromRoom.id))
-        noLongerDisplayedRooms.forEach((room) => this.unsubscribeOnMemberByRoom[room.id]?.())
-
-        // Add listeners on rooms that aren't displayed
-        const newRooms = toRooms.filter((toRoom) => !fromRooms.some((fromRoom) => fromRoom.id === toRoom.id))
-
-        newRooms.forEach((room) => {
-          // This would never happen I think but we unsubscribe just in case
-          this.unsubscribeOnMemberByRoom[room.id]?.()
-
-          const roomMembersRef = collection(db, 'rooms', `${room.id}`, 'members')
-
-          this.unsubscribeOnMemberByRoom[room.id] = onSnapshot(roomMembersRef, async (membersSnapshot) => {
-            const onlineMembers = membersSnapshot.docs.length
-            this.membersByRoom[room.id] = onlineMembers
-          })
-        })
-
-        toRooms.forEach(async (room) => {
-          // We don't need to fetch user information again if we already have it
-          if (!this.hostByRoom[room.id]) {
-            const hostUserRef = doc(db, 'users', `${room.host}`)
-            const hostUserSnapshot = await getDoc(hostUserRef)
-
-            if (hostUserSnapshot.exists()) {
-              this.hostByRoom[room.id] = hostUserSnapshot.data().displayName
-            } else {
-              this.hostByRoom[room.id] = 'host not found'
-            }
-          }
-        })
-      }
-    },
+    // TODO: Is it possible to combine these 3 watchers to one handler?
     "search": {
-      handler(toInput: string) {
-        if (toInput.length > 0) {
-          this.userBasedQueryConstraints.set('onSearch', [where('name', '>=', toInput), where('name', '<=', toInput + '\uf8ff')])
-          this.userBasedQueryConstraints.delete('onPage')
-          this.firstVisible = null
-          this.lastVisible = null
-        } else {
-          this.userBasedQueryConstraints.delete('onSearch')
-          this.userBasedQueryConstraints.delete('onPage')
-          this.firstVisible = null
-          this.lastVisible = null
-        }
+      async handler() {
+        this.isLoading = true;
 
-        this.fetchRooms()
+        await this.fetchRooms([limit(pageSize + 1)]).then((docs) => {
+          this.firstPage = true;
+
+          if (docs.length > pageSize) {
+            this.lastPage = false;
+            docs.pop();
+          } else {
+            this.lastPage = true;
+          }
+
+          this.firstVisible = docs[0] || null;
+          this.lastVisible = docs[docs.length - 1] || null;
+
+          this.rooms = docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data() as Room,
+          }));
+        }).finally(() => {
+          this.isLoading = false;
+        });
       }
     },
     "tab": {
-      handler(toTab: 'public' | 'private') {
-        if (toTab === 'private') {
-          this.userBasedQueryConstraints.set('onType', [where('type', '==', `${toTab}`), where('permissionId', 'in', this.roomPermissionsRoomIds.length ? this.roomPermissionsRoomIds : [''])])
-        }
+      async handler() {
+        if (this.isLoading) return;
 
-        if (toTab === 'public') {
-          this.userBasedQueryConstraints.set('onType', [where('type', '==', `${toTab}`)])
-        }
+        this.isLoading = true;
 
-        this.userBasedQueryConstraints.delete('onPage')
+        await this.fetchRooms([limit(pageSize + 1)]).then((docs) => {
+          this.firstPage = true;
 
-        this.fetchRooms()
+          if (docs.length > pageSize) {
+            this.lastPage = false;
+            docs.pop();
+          } else {
+            this.lastPage = true;
+          }
+
+          this.firstVisible = docs[0] || null;
+          this.lastVisible = docs[docs.length - 1] || null;
+
+          this.rooms = docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data() as Room,
+          }));
+        }).finally(() => {
+          this.isLoading = false;
+        });
       }
     },
-    "roomPermissionsRoomIds": {
-      handler() {
-        if (this.tab === 'private') {
-          this.userBasedQueryConstraints.set('onType', [where('type', '==', `${this.tab}`), ...(this.roomPermissionsRoomIds.length > 0 ? [where('key', 'in', this.roomPermissionsRoomIds)] : [])])
-        }
-
-        this.fetchRooms()
-      }
-    }
   },
   async created() {
-    this.fetchRooms()
+    this.isLoading = true;
 
-    const permissionsRef = collection(db, 'permissions')
-    const yourRoomPermissionsRef = query(permissionsRef, where('userId', '==', this.store.auth.userId))
+    const permissionsRef = collection(db, 'permissions');
+    const yourRoomPermissionsRef = query(permissionsRef, where('userId', '==', this.store.auth.userId));
+    const snapshot = await getDocs(yourRoomPermissionsRef);
+    const yourRoomPermissions = snapshot.docs.filter((doc) => doc.exists());
+    this.roomPermissionsRoomIds = yourRoomPermissions.map((yourRoomPermissions) => yourRoomPermissions.data().roomPermissionId);
 
-    this.unsubscribeOnPermissionsValue = onSnapshot(yourRoomPermissionsRef, (yourRoomPermissionsSnapshot) => {
-      this.roomPermissionsRoomIds = yourRoomPermissionsSnapshot.docs.map((yourRoomPermissions) => yourRoomPermissions.data().roomPermissionId)
-    })
+    await this.fetchRooms([limit(pageSize + 1)]).then((docs) => {
+      this.firstPage = true;
 
-  },
-  unmounted() {
-    if (this.unsubscribeOnRoomsValue) {
-      this.unsubscribeOnRoomsValue()
-    }
-
-    if (this.unsubscribeOnPermissionsValue) {
-      this.unsubscribeOnPermissionsValue()
-    }
-  },
-  methods: {
-    changePage(go: 'previous' | 'next') {
-      if (this.lastVisible) {
-        if (go === 'previous') {
-          this.userBasedQueryConstraints.set('onPage', [endBefore(this.firstVisible), limitToLast(pageSize)])
-        }
-
-        if (go === 'next') {
-          this.userBasedQueryConstraints.set('onPage', [
-            startAfter(this.lastVisible), limit(pageSize)
-          ])
-        }
+      if (docs.length > pageSize) {
+        this.lastPage = false;
+        docs.pop();
       } else {
-        this.userBasedQueryConstraints.delete('onPage')
+        this.lastPage = true;
       }
 
-      this.isSwitchingPage = true
-      this.fetchRooms()
+      this.firstVisible = docs[0] || null;
+      this.lastVisible = docs[docs.length - 1] || null;
+
+      this.rooms = docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data() as Room,
+      }));
+    }).finally(() => {
+      this.isLoading = false;
+    });
+  },
+  methods: {
+    getOrderByQueries() {
+      const queries: QueryConstraint[] = [];
+
+      if (this.search.length > 0) {
+        queries.push(orderBy('name', 'asc'), orderBy('createdAt', 'desc'));
+      } else {
+        queries.push(orderBy('createdAt', 'desc'));
+      }
+
+      return queries;
     },
-    async fetchRooms() {
+    getWhereQueries() {
+      const queries: QueryConstraint[] = [];
+
+      if (this.search.length > 0) {
+        queries.push(where('name', '>=', this.search), where('name', '<=', this.search + '\uf8ff'));
+      }
+
+      switch (this.tab) {
+        case 'private': {
+          queries.push(where('type', '==', `${this.tab}`), where('permissionId', 'in', this.roomPermissionsRoomIds.length ? this.roomPermissionsRoomIds : ['']));
+        }
+        case 'public': {
+          queries.push(where('type', '==', `${this.tab}`));
+        }
+      }
+
+      return queries;
+    },
+    async onPageChange(action: 'previous' | 'next') {
+      if (this.isLoading) return;
+
+      let roomsDocs: QueryDocumentSnapshot<DocumentData>[] = [];
+
+      switch (action) {
+        case 'previous': {
+          const queries = [endBefore(this.firstVisible), limitToLast(pageSize + 1)];
+
+          this.isLoading = true;
+
+          roomsDocs = await this.fetchRooms(queries).then(async (docs) => {
+            this.lastPage = false;
+
+            if (docs.length > pageSize) {
+              this.firstPage = false;
+              docs.shift();
+
+              return docs;
+            } else {
+              this.firstPage = true;
+
+              if (docs.length === pageSize) return docs;
+
+              const queries = [startAt(docs[0]), limit(pageSize + 1)];
+
+              return await this.fetchRooms(queries).then((docs2) => {
+                if (docs2.length > pageSize) {
+                  this.lastPage = false;
+                  docs2.pop();
+                } else {
+                  this.lastPage = true;
+                }
+
+                return docs2;
+              });
+            }
+          }).finally(() => {
+            this.isLoading = false;
+          });
+
+          break;
+        }
+        case 'next': {
+          const queries = [startAfter(this.lastVisible), limit(pageSize + 1)];
+
+          this.isLoading = true;
+
+          roomsDocs = await this.fetchRooms(queries).then((docs) => {
+            this.firstPage = false;
+
+            if (docs.length > pageSize) {
+              this.lastPage = false;
+              docs.pop();
+            } else {
+              this.lastPage = true;
+            }
+
+            return docs
+          }).finally(() => {
+            this.isLoading = false;
+          });
+
+          break;
+        }
+      }
+
+      this.firstVisible = roomsDocs[0] || null;
+      this.lastVisible = roomsDocs[roomsDocs.length - 1] || null;
+
+      this.rooms = roomsDocs.map((doc) => ({
+        id: doc.id,
+        ...doc.data() as Room,
+      }));
+    },
+    async fetchRooms(queries: QueryConstraint[] = []) {
       const roomsRef = query(
         collection(db, 'rooms'),
-        ...(this.userBasedQueryConstraints.has('onSearch') ? [orderBy('name', 'asc')] : []),
-        orderBy('createdAt', 'desc'),
-        ...Array.from(this.userBasedQueryConstraints.values()).flat(),
-        ...(!this.userBasedQueryConstraints.has('onPage') ? [limit(pageSize)] : []),
-      )
+        ...this.getOrderByQueries(),
+        ...this.getWhereQueries(),
+        ...queries,
+      );
 
-      const documentSnapshots = await getDocs(roomsRef)
+      const documentSnapshots = await getDocs(roomsRef);
+      const roomsDocs: QueryDocumentSnapshot<DocumentData>[] = [];
 
-      if (documentSnapshots.docs.length === 0 && this.isSwitchingPage) return
+      documentSnapshots.forEach((doc) => {
+        if (doc.exists()) {
+          roomsDocs.push(doc)
+        }
+      });
 
-      this.isSwitchingPage = false
-      this.firstVisible = documentSnapshots.docs[0] || null
-      this.lastVisible = documentSnapshots.docs[documentSnapshots.docs.length - 1] || null
-
-      if (this.unsubscribeOnRoomsValue) this.unsubscribeOnRoomsValue()
-
-      this.unsubscribeOnRoomsValue = onSnapshot(roomsRef, async (roomsSnapshot) => {
-        const rooms = roomsSnapshot.docs.filter((roomSnapshot) => roomSnapshot.exists())
-
-        this.rooms = rooms.map((roomSnapshot) => {
-          const roomData = roomSnapshot.data() as Room
-
-          return ({
-            id: roomSnapshot.id,
-            ...roomData,
-          })
-        })
-      })
+      return roomsDocs;
     }
   },
-  components: { RoomList, ContentSlideEffect, CreateRoom, ColorSlideEffectVue }
+  components: { RoomList, ContentSlideEffect, CreateRoom, ColorSlideEffectVue, LoadingCircle },
 })
 </script>
 
@@ -243,29 +294,28 @@ export default defineComponent({
       <div class="container">
         <div class="room-list-wrapper">
           <div class="input-container" :style="{ marginBottom: '40px' }">
-            <ColorSlideEffectVue :active="previousButtonHover" :inactive-bg-color="'#6200ff'"
+            <ColorSlideEffectVue :active="!firstPage && previousButtonHover" :inactive-bg-color="'#6200ff'"
               :inactive-text-color="'white'" :active-bg-color="'#310080'" :active-text-color="'white'">
               <template v-slot:element>
-                <button @click="() => changePage('previous')" @mouseover="previousButtonHover = true"
-                  @mouseleave="previousButtonHover = false">Previous</button>
+                <button @click="() => { !firstPage && onPageChange('previous') }" :class="{ disable: firstPage }"
+                  @mouseover="previousButtonHover = true" @mouseleave="previousButtonHover = false">Previous</button>
               </template>
-              <p @click="() => changePage('previous')">Previous</p>
             </ColorSlideEffectVue>
-            <ColorSlideEffectVue :active="nextButtonHover" :inactive-bg-color="'#6200ff'" :inactive-text-color="'white'"
-              :active-bg-color="'#310080'" :active-text-color="'white'">
+            <ColorSlideEffectVue :active="!lastPage && nextButtonHover" :inactive-bg-color="'#6200ff'"
+              :inactive-text-color="'white'" :active-bg-color="'#310080'" :active-text-color="'white'">
               <template v-slot:element>
-                <button @click="() => changePage('next')" @mouseover="nextButtonHover = true"
-                  @mouseleave="nextButtonHover = false">Next</button>
+                <button @click="() => { !lastPage && onPageChange('next') }" :class="{ disable: lastPage }"
+                  @mouseover="nextButtonHover = true" @mouseleave="nextButtonHover = false">Next</button>
               </template>
             </ColorSlideEffectVue>
-            <ColorSlideEffectVue :active="publicButtonHover" :inactive-bg-color="'#6200ff'"
+            <ColorSlideEffectVue :active="tab === 'public' || publicButtonHover" :inactive-bg-color="'#6200ff'"
               :inactive-text-color="'white'" :active-bg-color="'#310080'" :active-text-color="'white'">
               <template v-slot:element>
                 <button @click="tab = 'public'" @mouseover="publicButtonHover = true"
                   @mouseleave="publicButtonHover = false">Public</button>
               </template>
             </ColorSlideEffectVue>
-            <ColorSlideEffectVue :active="privateButtonHover" :inactive-bg-color="'#6200ff'"
+            <ColorSlideEffectVue :active="tab === 'private' || privateButtonHover" :inactive-bg-color="'#6200ff'"
               :inactive-text-color="'white'" :active-bg-color="'#310080'" :active-text-color="'white'">
               <template v-slot:element>
                 <button @click="tab = 'private'" @mouseover="privateButtonHover = true"
@@ -275,40 +325,11 @@ export default defineComponent({
             <input v-model="search" placeholder="Search" />
           </div>
           <div :style="{ flexGrow: 1 }">
-            <RoomList v-if="rooms.length" :rooms="rooms" :membersByRoom="membersByRoom" :hostByRoom="hostByRoom" />
+            <RoomList v-if="rooms.length" :rooms="rooms" />
             <p v-else>No rooms found</p>
           </div>
-          <div class="input-container" :style="{ marginTop: '40px' }">
-            <ColorSlideEffectVue :active="previousButtonHover" :inactive-bg-color="'#6200ff'"
-              :inactive-text-color="'white'" :active-bg-color="'#310080'" :active-text-color="'white'">
-              <template v-slot:element>
-                <button @click="() => changePage('previous')" @mouseover="previousButtonHover = true"
-                  @mouseleave="previousButtonHover = false">Previous</button>
-              </template>
-              <p @click="() => changePage('previous')">Previous</p>
-            </ColorSlideEffectVue>
-            <ColorSlideEffectVue :active="nextButtonHover" :inactive-bg-color="'#6200ff'" :inactive-text-color="'white'"
-              :active-bg-color="'#310080'" :active-text-color="'white'">
-              <template v-slot:element>
-                <button @click="() => changePage('next')" @mouseover="nextButtonHover = true"
-                  @mouseleave="nextButtonHover = false">Next</button>
-              </template>
-            </ColorSlideEffectVue>
-            <ColorSlideEffectVue :active="publicButtonHover" :inactive-bg-color="'#6200ff'"
-              :inactive-text-color="'white'" :active-bg-color="'#310080'" :active-text-color="'white'">
-              <template v-slot:element>
-                <button @click="tab = 'public'" @mouseover="publicButtonHover = true"
-                  @mouseleave="publicButtonHover = false">Public</button>
-              </template>
-            </ColorSlideEffectVue>
-            <ColorSlideEffectVue :active="privateButtonHover" :inactive-bg-color="'#6200ff'"
-              :inactive-text-color="'white'" :active-bg-color="'#310080'" :active-text-color="'white'">
-              <template v-slot:element>
-                <button @click="tab = 'private'" @mouseover="privateButtonHover = true"
-                  @mouseleave="privateButtonHover = false">Private</button>
-              </template>
-            </ColorSlideEffectVue>
-            <input v-model="search" placeholder="Search" />
+          <div class="loading-wrapper">
+            <LoadingCircle v-if="isLoading" />
           </div>
         </div>
       </div>
@@ -325,7 +346,7 @@ export default defineComponent({
 
 .rooms-wrapper {
   flex: 1;
-  padding: 100px;
+  padding: 50px 100px;
 }
 
 .container {
@@ -371,6 +392,10 @@ button {
   border-bottom: 2px solid white;
   background: none;
   color: inherit;
+
+  &.disable {
+    opacity: 0.5;
+  }
 }
 
 input {
@@ -382,5 +407,10 @@ input {
   &:focus {
     outline: none;
   }
+}
+
+.loading-wrapper {
+  display: flex;
+  justify-content: center;
 }
 </style>
