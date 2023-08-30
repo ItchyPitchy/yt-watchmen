@@ -2,7 +2,7 @@
 import { defineComponent, type PropType } from "vue";
 import RoomItem from "./RoomItem.vue";
 import BeenInView from "../common/BeenInView.vue";
-import type { RoomExtended } from "./Rooms.vue";
+import type { Members, RoomExtended } from "./Rooms.vue";
 
 interface State {
   itemRefs: Element[],
@@ -21,6 +21,10 @@ export default defineComponent({
       type: Array as PropType<RoomExtended[]>,
       required: true,
     },
+    members: {
+      type: Object as PropType<Members>,
+      required: true,
+    }
   },
   created() {
     this.roomsExtended = this.rooms.map(room => ({
@@ -55,8 +59,7 @@ export default defineComponent({
       <BeenInView v-for="(room, index) of roomsExtended" :elementRef="itemRefs[index]"
         :disableStartInView="room.addedWhileInView" :key="room.id">
         <li :ref="(el) => setItemRef(el as Element | null, index)">
-          <RoomItem :room="room" :onlineMembers="1/*Object.entries(room.members).length*/"
-            :hostDisplayName="room.host /* TODO: Add display name */" />
+          <RoomItem :room="room" :hostDisplayName="room.hostName" :members="members[room.membersId]?.length || 0" />
         </li>
       </BeenInView>
     </ul>

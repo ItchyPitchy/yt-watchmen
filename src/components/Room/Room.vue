@@ -42,17 +42,12 @@ export default defineComponent({
 
         if (this.unsubscribeOnRoomValue) this.unsubscribeOnRoomValue()
 
-        if (fromId) await this.removeUserFromRoom(fromId)
         if (toId) {
           const roomRef = doc(db, 'rooms', `${toId}`)
 
-          this.unsubscribeOnRoomValue = onSnapshot(roomRef, (snapshot) => {
-            if (snapshot.exists()) {
-              this.roomData = snapshot.data() as Room
-            }
+          this.unsubscribeOnRoomValue = onSnapshot(roomRef, async (snapshot) => {
+            if (snapshot.exists()) this.roomData = snapshot.data() as Room
           })
-
-          await this.addUserToRoom(toId)
         }
 
         cleanup(() => {
@@ -60,26 +55,30 @@ export default defineComponent({
         })
       }
     },
-  },
-  created() {
-    this.addUserToRoom(this.roomId)
+    'roomData': {
+      async handler(from: State['roomData'], to: State['roomData']) {
+        if (from) await this.removeUserFromRoom(from.membersId)
+        if (to) await this.addUserToRoom(to.membersId)
+      }
+    }
   },
   methods: {
-    async addUserToRoom(roomId: string) {
-      const roomMembersMeRef = collection(db, 'rooms', `${roomId}`, 'members')
+    async addUserToRoom(membersId: string) {
+      const membersRef = collection(db, `members`)
 
-      await addDoc(roomMembersMeRef, {
-        userId: this.store.auth.userId!,
+      await addDoc(membersRef, {
+        userId: this.store.auth.userId,
+        membersId,
       })
     },
-    async removeUserFromRoom(roomId: string) {
-      const roomMembersMeRef = collection(db, 'rooms', `${roomId}`, 'members')
-      const q = query(roomMembersMeRef, where('userId', '==', this.store.auth.userId))
-      const querySnapshot = await getDocs(q)
+    async removeUserFromRoom(membersId: string) {
+      const membersRef = collection(db, `members`)
+      const membersMeRef = query(membersRef, where('userId', '==', this.store.auth.userId), where('membersId', '==', membersId))
+      const membersMeSnapshot = await getDocs(membersMeRef)
 
-      querySnapshot.forEach(async (doc) => {
+      for (const doc of membersMeSnapshot.docs) {
         await deleteDoc(doc.ref)
-      })
+      }
     },
     async onPlayerReady() {
       const roomRef = doc(db, 'rooms', `${this.roomId}`)

@@ -1,22 +1,29 @@
 <script lang="ts">
 import { defineComponent, inject } from "vue"
-import { collection, endBefore, getDocs, getFirestore, limit, limitToLast, orderBy, query, QueryConstraint, QueryDocumentSnapshot, startAfter, startAt, where, type DocumentData } from "firebase/firestore"
+import { collection, endBefore, getDocs, getFirestore, limit, limitToLast, onSnapshot, orderBy, query, QueryConstraint, QueryDocumentSnapshot, startAfter, startAt, where, type DocumentData, type Unsubscribe } from "firebase/firestore"
 import type { Store } from "@/main"
 import RoomList from "../Rooms/RoomList.vue"
 import ContentSlideEffect from "../common/ContentSlideEffect.vue"
 import CreateRoom from "./CreateRoom.vue"
 import ColorSlideEffectVue from "../common/ColorSlideEffect.vue"
-import LoadingCircle from "../common/LoadingCircle.vue";
+import LoadingCircle from "../common/LoadingCircle.vue"
 
+// TODO: Add firebase typescript middleware and move this type there
 export interface Room {
   host: string,
+  hostName: string,
   name: string,
   videoId: string | null,
   state: "playing" | "paused",
   time: number,
   rate: number,
   createdAt: number,
-  members: {}, // TODO: Change to correct type!
+  permissionId: string,
+  membersId: string,
+}
+
+export type Members = {
+  [key: string]: { userId: string, membersId: string }[]
 }
 
 export interface Message {
@@ -30,7 +37,9 @@ export type RoomExtended = Room & {
 }
 
 interface State {
-  roomPermissionsRoomIds: string[],
+  permittedIds: string[],
+  unsubscribeMembers: Unsubscribe | null,
+  members: Members,
   tab: "private" | "public",
   rooms: RoomExtended[],
   isLoading: boolean,
@@ -56,7 +65,9 @@ export default defineComponent({
   },
   data(): State {
     return {
-      roomPermissionsRoomIds: [],
+      permittedIds: [],
+      unsubscribeMembers: null,
+      members: {},
       tab: 'public',
       rooms: [],
       isLoading: false,
@@ -75,193 +86,215 @@ export default defineComponent({
     // TODO: Is it possible to combine these 3 watchers to one handler?
     "search": {
       async handler() {
-        this.isLoading = true;
+        this.isLoading = true
 
         await this.fetchRooms([limit(pageSize + 1)]).then((docs) => {
-          this.firstPage = true;
+          this.firstPage = true
 
           if (docs.length > pageSize) {
-            this.lastPage = false;
-            docs.pop();
+            this.lastPage = false
+            docs.pop()
           } else {
-            this.lastPage = true;
+            this.lastPage = true
           }
 
-          this.firstVisible = docs[0] || null;
-          this.lastVisible = docs[docs.length - 1] || null;
+          this.firstVisible = docs[0] || null
+          this.lastVisible = docs[docs.length - 1] || null
 
           this.rooms = docs.map((doc) => ({
             id: doc.id,
             ...doc.data() as Room,
-          }));
+          }))
         }).finally(() => {
-          this.isLoading = false;
-        });
+          this.isLoading = false
+        })
       }
     },
     "tab": {
       async handler() {
-        if (this.isLoading) return;
+        if (this.isLoading) return
 
-        this.isLoading = true;
+        this.isLoading = true
 
         await this.fetchRooms([limit(pageSize + 1)]).then((docs) => {
-          this.firstPage = true;
+          this.firstPage = true
 
           if (docs.length > pageSize) {
-            this.lastPage = false;
-            docs.pop();
+            this.lastPage = false
+            docs.pop()
           } else {
-            this.lastPage = true;
+            this.lastPage = true
           }
 
-          this.firstVisible = docs[0] || null;
-          this.lastVisible = docs[docs.length - 1] || null;
+          this.firstVisible = docs[0] || null
+          this.lastVisible = docs[docs.length - 1] || null
 
           this.rooms = docs.map((doc) => ({
             id: doc.id,
             ...doc.data() as Room,
-          }));
+          }))
+
+          console.log(this.rooms)
         }).finally(() => {
-          this.isLoading = false;
-        });
+          this.isLoading = false
+        })
       }
     },
+    'rooms': {
+      async handler(from: State['rooms'], to: State['rooms']) {
+        if (to) {
+          const roomMembersId = to.map((room) => room.membersId)
+
+          const membersRef = collection(db, 'members')
+          const membersQuery = query(membersRef, where('membersId', 'in', roomMembersId.length ? roomMembersId : ['']))
+          const members = await getDocs(membersQuery)
+          const membersFiltered = members.docs.filter((doc) => doc.exists()).map((doc) => doc.data() as { userId: string, membersId: string })
+
+          const groupByMembersId = membersFiltered.reduce<{ [key: string]: { userId: string, membersId: string }[] }>((previous, current) => {
+            return {
+              [current.membersId]: [...previous[current.membersId], current]
+            }
+          }, {})
+
+          this.members = groupByMembersId
+        }
+      }
+    }
   },
   async created() {
-    this.isLoading = true;
+    this.isLoading = true
 
-    const permissionsRef = collection(db, 'permissions');
-    const yourRoomPermissionsRef = query(permissionsRef, where('userId', '==', this.store.auth.userId));
-    const snapshot = await getDocs(yourRoomPermissionsRef);
-    const yourRoomPermissions = snapshot.docs.filter((doc) => doc.exists());
-    this.roomPermissionsRoomIds = yourRoomPermissions.map((yourRoomPermissions) => yourRoomPermissions.data().roomPermissionId);
+    const permissionsRef = collection(db, 'permissions')
+    const yourPermissionsRef = query(permissionsRef, where('userId', '==', this.store.auth.userId))
+    const yourPermissionsSnapshot = await getDocs(yourPermissionsRef)
+    const yourPermissions = yourPermissionsSnapshot.docs.filter((doc) => doc.exists())
+    this.permittedIds = yourPermissions.map((yourPermission) => yourPermission.data().permissionId)
 
     await this.fetchRooms([limit(pageSize + 1)]).then((docs) => {
-      this.firstPage = true;
+      this.firstPage = true
 
       if (docs.length > pageSize) {
-        this.lastPage = false;
-        docs.pop();
+        this.lastPage = false
+        docs.pop()
       } else {
-        this.lastPage = true;
+        this.lastPage = true
       }
 
-      this.firstVisible = docs[0] || null;
-      this.lastVisible = docs[docs.length - 1] || null;
+      this.firstVisible = docs[0] || null
+      this.lastVisible = docs[docs.length - 1] || null
 
       this.rooms = docs.map((doc) => ({
         id: doc.id,
         ...doc.data() as Room,
-      }));
+      }))
     }).finally(() => {
-      this.isLoading = false;
-    });
+      this.isLoading = false
+    })
   },
   methods: {
     getOrderByQueries() {
-      const queries: QueryConstraint[] = [];
+      const queries: QueryConstraint[] = []
 
       if (this.search.length > 0) {
-        queries.push(orderBy('name', 'asc'), orderBy('createdAt', 'desc'));
+        queries.push(orderBy('name', 'asc'), orderBy('createdAt', 'desc'))
       } else {
-        queries.push(orderBy('createdAt', 'desc'));
+        queries.push(orderBy('createdAt', 'desc'))
       }
 
-      return queries;
+      return queries
     },
     getWhereQueries() {
-      const queries: QueryConstraint[] = [];
+      const queries: QueryConstraint[] = []
 
       if (this.search.length > 0) {
-        queries.push(where('name', '>=', this.search), where('name', '<=', this.search + '\uf8ff'));
+        queries.push(where('name', '>=', this.search), where('name', '<=', this.search + '\uf8ff'))
       }
 
       switch (this.tab) {
         case 'private': {
-          queries.push(where('type', '==', `${this.tab}`), where('permissionId', 'in', this.roomPermissionsRoomIds.length ? this.roomPermissionsRoomIds : ['']));
+          queries.push(where('type', '==', `${this.tab}`), where('permissionId', 'in', this.permittedIds.length ? this.permittedIds : ['']))
         }
         case 'public': {
-          queries.push(where('type', '==', `${this.tab}`));
+          queries.push(where('type', '==', `${this.tab}`))
         }
       }
 
-      return queries;
+      return queries
     },
     async onPageChange(action: 'previous' | 'next') {
-      if (this.isLoading) return;
+      if (this.isLoading) return
 
-      let roomsDocs: QueryDocumentSnapshot<DocumentData>[] = [];
+      let roomsDocs: QueryDocumentSnapshot<DocumentData>[] = []
 
       switch (action) {
         case 'previous': {
-          const queries = [endBefore(this.firstVisible), limitToLast(pageSize + 1)];
+          const queries = [endBefore(this.firstVisible), limitToLast(pageSize + 1)]
 
-          this.isLoading = true;
+          this.isLoading = true
 
           roomsDocs = await this.fetchRooms(queries).then(async (docs) => {
-            this.lastPage = false;
+            this.lastPage = false
 
             if (docs.length > pageSize) {
-              this.firstPage = false;
-              docs.shift();
+              this.firstPage = false
+              docs.shift()
 
-              return docs;
+              return docs
             } else {
-              this.firstPage = true;
+              this.firstPage = true
 
-              if (docs.length === pageSize) return docs;
+              if (docs.length === pageSize) return docs
 
-              const queries = [startAt(docs[0]), limit(pageSize + 1)];
+              const queries = [startAt(docs[0]), limit(pageSize + 1)]
 
               return await this.fetchRooms(queries).then((docs2) => {
                 if (docs2.length > pageSize) {
-                  this.lastPage = false;
-                  docs2.pop();
+                  this.lastPage = false
+                  docs2.pop()
                 } else {
-                  this.lastPage = true;
+                  this.lastPage = true
                 }
 
-                return docs2;
-              });
+                return docs2
+              })
             }
           }).finally(() => {
-            this.isLoading = false;
-          });
+            this.isLoading = false
+          })
 
-          break;
+          break
         }
         case 'next': {
-          const queries = [startAfter(this.lastVisible), limit(pageSize + 1)];
+          const queries = [startAfter(this.lastVisible), limit(pageSize + 1)]
 
-          this.isLoading = true;
+          this.isLoading = true
 
           roomsDocs = await this.fetchRooms(queries).then((docs) => {
-            this.firstPage = false;
+            this.firstPage = false
 
             if (docs.length > pageSize) {
-              this.lastPage = false;
-              docs.pop();
+              this.lastPage = false
+              docs.pop()
             } else {
-              this.lastPage = true;
+              this.lastPage = true
             }
 
             return docs
           }).finally(() => {
-            this.isLoading = false;
-          });
+            this.isLoading = false
+          })
 
-          break;
+          break
         }
       }
 
-      this.firstVisible = roomsDocs[0] || null;
-      this.lastVisible = roomsDocs[roomsDocs.length - 1] || null;
+      this.firstVisible = roomsDocs[0] || null
+      this.lastVisible = roomsDocs[roomsDocs.length - 1] || null
 
       this.rooms = roomsDocs.map((doc) => ({
         id: doc.id,
         ...doc.data() as Room,
-      }));
+      }))
     },
     async fetchRooms(queries: QueryConstraint[] = []) {
       const roomsRef = query(
@@ -269,18 +302,18 @@ export default defineComponent({
         ...this.getOrderByQueries(),
         ...this.getWhereQueries(),
         ...queries,
-      );
+      )
 
-      const documentSnapshots = await getDocs(roomsRef);
-      const roomsDocs: QueryDocumentSnapshot<DocumentData>[] = [];
+      const documentSnapshots = await getDocs(roomsRef)
+      const roomsDocs: QueryDocumentSnapshot<DocumentData>[] = []
 
       documentSnapshots.forEach((doc) => {
         if (doc.exists()) {
           roomsDocs.push(doc)
         }
-      });
+      })
 
-      return roomsDocs;
+      return roomsDocs
     }
   },
   components: { RoomList, ContentSlideEffect, CreateRoom, ColorSlideEffectVue, LoadingCircle },
@@ -325,7 +358,7 @@ export default defineComponent({
             <input v-model="search" placeholder="Search" />
           </div>
           <div :style="{ flexGrow: 1 }">
-            <RoomList v-if="rooms.length" :rooms="rooms" />
+            <RoomList v-if="rooms.length" :rooms="rooms" :members="members" />
             <p v-else>No rooms found</p>
           </div>
           <div class="loading-wrapper">

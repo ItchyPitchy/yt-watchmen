@@ -5,14 +5,15 @@ import { uuidv4 } from "@firebase/util"
 import type { Store } from "@/main"
 import ContentSlideEffect from "../common/ContentSlideEffect.vue"
 import CustomIcon from "../icons/CustomIcon.vue"
-import User from "../icons/User.vue"
 import AngleLeft from "../icons/AngleLeft.vue"
+import LoadingCircle from "../common/LoadingCircle.vue"
 
 interface State {
   roomName: string,
   type: "private" | "public",
   hover: boolean,
   isOpen: boolean,
+  isLoading: boolean,
 }
 
 const db = getFirestore()
@@ -29,6 +30,7 @@ export default defineComponent({
       type: 'private',
       hover: false,
       isOpen: false,
+      isLoading: false,
     }
   },
   computed: {
@@ -38,15 +40,25 @@ export default defineComponent({
   },
   methods: {
     async onCreateRoom() {
+      this.isLoading = true
+
       const roomId = await this.createRoom()
+
+      this.isLoading = false
 
       this.$router.push(`/rooms/${roomId}`)
     },
+    /**
+     * @returns id of created room
+     */
     async createRoom() {
       const roomsRef = collection(db, 'rooms')
+      const permissionsId = uuidv4()
+      const membersId = uuidv4()
 
       const newRoomRef = await addDoc(roomsRef, {
         host: this.store.auth.userId,
+        hostName: this.store.auth.userName,
         name: this.roomName,
         type: this.type,
         videoId: null,
@@ -54,13 +66,28 @@ export default defineComponent({
         time: 0,
         state: "paused",
         createdAt: Timestamp.now().valueOf(),
-        permissionId: uuidv4(),
+        permissionsId,
+        membersId,
+      })
+
+      const roomPermissionsRef = collection(db, 'permissions')
+
+      await addDoc(roomPermissionsRef, {
+        userId: this.store.auth.userId,
+        permissionsId,
+      })
+
+      const membersRef = collection(db, 'members')
+
+      await addDoc(membersRef, {
+        userId: this.store.auth.userId,
+        membersId,
       })
 
       return newRoomRef.id
     },
   },
-  components: { ContentSlideEffect, CustomIcon, AngleLeft }
+  components: { ContentSlideEffect, CustomIcon, AngleLeft, LoadingCircle }
 })
 </script>
 
@@ -99,6 +126,7 @@ export default defineComponent({
       <button @click="() => { !error && onCreateRoom() }" @mouseover="hover = true" @mouseleave="hover = false"
         :class="{ error }">Create
         room</button>
+      <LoadingCircle v-if="isLoading" />
     </div>
     <div class="sidebar-frame">
       <div class="icon-wrapper" @click="isOpen = !isOpen">
